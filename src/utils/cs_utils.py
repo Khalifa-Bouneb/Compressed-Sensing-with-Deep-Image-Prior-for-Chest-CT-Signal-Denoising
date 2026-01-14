@@ -157,6 +157,10 @@ def add_noise(image, noise_level=0.01):
         return image + noise
 
 
+# Small constant to avoid division by zero
+EPSILON = 1e-8
+
+
 def normalize_image(image, min_val=None, max_val=None):
     """
     Normalize image to [0, 1] range.
@@ -174,10 +178,10 @@ def normalize_image(image, min_val=None, max_val=None):
             min_val = image.min()
         if max_val is None:
             max_val = image.max()
-        return (image - min_val) / (max_val - min_val + 1e-8)
+        return (image - min_val) / (max_val - min_val + EPSILON)
     else:
         if min_val is None:
             min_val = image.min()
         if max_val is None:
             max_val = image.max()
-        return (image - min_val) / (max_val - min_val + 1e-8)
+        return (image - min_val) / (max_val - min_val + EPSILON)

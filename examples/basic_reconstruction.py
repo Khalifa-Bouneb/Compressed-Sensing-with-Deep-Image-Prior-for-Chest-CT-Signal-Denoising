@@ -38,10 +38,14 @@ def load_sample_image(image_path=None, size=(256, 256)):
     else:
         # Create a synthetic test image (shepp-logan phantom-like)
         print("No image path provided. Creating synthetic test image...")
-        from skimage import data
-        img = data.shepp_logan_phantom()
-        img = np.array(Image.fromarray(img).resize(size))
-        img = img.astype(np.float32)
+        try:
+            from skimage import data
+            img = data.shepp_logan_phantom()
+            img = np.array(Image.fromarray(img).resize(size))
+            img = img.astype(np.float32)
+        except ImportError:
+            print("Warning: scikit-image not available. Creating random test image...")
+            img = np.random.rand(*size).astype(np.float32)
     
     return normalize_image(img)
 

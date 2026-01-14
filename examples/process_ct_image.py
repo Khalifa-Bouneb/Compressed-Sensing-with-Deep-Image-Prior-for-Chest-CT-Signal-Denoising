@@ -67,7 +67,10 @@ def load_ct_image(image_path, target_size=(256, 256)):
             img = np.array(Image.fromarray(img).resize(target_size))
             img = normalize_image(img)
         except ImportError:
-            raise ImportError("pydicom not installed. Install with: pip install pydicom")
+            raise ImportError(
+                "pydicom is not installed. "
+                "To work with DICOM files, install it with: pip install pydicom"
+            )
     
     else:
         raise ValueError(f"Unsupported file format: {ext}")

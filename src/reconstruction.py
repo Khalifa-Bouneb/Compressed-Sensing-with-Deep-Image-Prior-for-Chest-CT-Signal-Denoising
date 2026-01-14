@@ -26,6 +26,9 @@ class DIPReconstructor:
         input_depth=32,
         lr=0.01,
         num_iter=5000,
+        num_channels_down=None,
+        num_channels_up=None,
+        num_channels_skip=None,
         device='cuda' if torch.cuda.is_available() else 'cpu'
     ):
         """
@@ -37,6 +40,9 @@ class DIPReconstructor:
             input_depth: Number of channels for input noise
             lr: Learning rate
             num_iter: Number of optimization iterations
+            num_channels_down: List of channel sizes for downsampling (optional)
+            num_channels_up: List of channel sizes for upsampling (optional)
+            num_channels_skip: List of channel sizes for skip connections (optional)
             device: Device to run on ('cuda' or 'cpu')
         """
         self.image_shape = image_shape
@@ -46,13 +52,21 @@ class DIPReconstructor:
         self.num_iter = num_iter
         self.device = device
         
+        # Default network architecture if not specified
+        if num_channels_down is None:
+            num_channels_down = [128, 128, 128, 128, 128]
+        if num_channels_up is None:
+            num_channels_up = [128, 128, 128, 128, 128]
+        if num_channels_skip is None:
+            num_channels_skip = [4, 4, 4, 4, 4]
+        
         # Initialize the network
         self.net = UNet(
             input_channels=input_depth,
             output_channels=1,
-            num_channels_down=[128, 128, 128, 128, 128],
-            num_channels_up=[128, 128, 128, 128, 128],
-            num_channels_skip=[4, 4, 4, 4, 4]
+            num_channels_down=num_channels_down,
+            num_channels_up=num_channels_up,
+            num_channels_skip=num_channels_skip
         ).to(device)
         
         # Initialize the CS operator
