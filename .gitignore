@@ -1,0 +1,84 @@
+# ========================
+# Python
+# ========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+*.whl
+
+# ========================
+# Virtual Environments
+# ========================
+venv/
+env/
+.env/
+.venv/
+
+# ========================
+# Jupyter Notebooks
+# ========================
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# ========================
+# IDE / Editor
+# ========================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.settings/
+
+# ========================
+# OS Files
+# ========================
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# ========================
+# Dataset (large files - don't track in Git)
+# Keep only a few sample images, not the full dataset
+# ========================
+Dataset/BSDS300/images/train/
+Dataset/BSDS300/images/test/
+!Dataset/BSDS300/images/test/101085.jpg
+!Dataset/BSDS300/images/test/102061.jpg
+!Dataset/BSDS300/images/test/108005.jpg
+!Dataset/BSDS300/images/test/126007.jpg
+!Dataset/BSDS300/images/test/167062.jpg
+!Dataset/BSDS300/images/test/175032.jpg
+!Dataset/BSDS300/images/test/208001.jpg
+!Dataset/BSDS300/images/test/253027.jpg
+!Dataset/BSDS300/images/test/291000.jpg
+!Dataset/BSDS300/images/test/3096.jpg
+
+# ========================
+# Results (generated outputs)
+# Keep CSVs and key plots, ignore large generated images
+# ========================
+results/*.png
+!results/README.md
+!results/*.csv
+
+# ========================
+# Model checkpoints & weights
+# ========================
+*.pth
+*.pt
+*.ckpt
+checkpoints/
+
+# ========================
+# Logs
+# ========================
+*.log
+runs/
+tensorboard/
