@@ -23,7 +23,6 @@ env/
 # Jupyter Notebooks
 # ========================
 .ipynb_checkpoints/
-*.ipynb_checkpoints
 
 # ========================
 # IDE / Editor
@@ -44,29 +43,20 @@ Desktop.ini
 .DS_Store
 
 # ========================
-# Dataset (large files - don't track in Git)
-# Keep only a few sample images, not the full dataset
+# Datasets (large - download locally, don't push)
 # ========================
-Dataset/BSDS300/images/train/
-Dataset/BSDS300/images/test/
-!Dataset/BSDS300/images/test/101085.jpg
-!Dataset/BSDS300/images/test/102061.jpg
-!Dataset/BSDS300/images/test/108005.jpg
-!Dataset/BSDS300/images/test/126007.jpg
-!Dataset/BSDS300/images/test/167062.jpg
-!Dataset/BSDS300/images/test/175032.jpg
-!Dataset/BSDS300/images/test/208001.jpg
-!Dataset/BSDS300/images/test/253027.jpg
-!Dataset/BSDS300/images/test/291000.jpg
-!Dataset/BSDS300/images/test/3096.jpg
+Dataset/
+MNIST/
 
 # ========================
 # Results (generated outputs)
-# Keep CSVs and key plots, ignore large generated images
+# Ignore model dumps (.pkl) and generated images (.png)
+# Keep README, CSVs and small metrics files
 # ========================
-results/*.png
+results/**/*.png
+results/**/*.pkl
 !results/README.md
-!results/*.csv
+!results/**/*.csv
 
 # ========================
 # Model checkpoints & weights
@@ -75,6 +65,18 @@ results/*.png
 *.pt
 *.ckpt
 checkpoints/
+
+# ========================
+# LaTeX auxiliary files
+# ========================
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.out
+*.synctex.gz
+*.toc
 
 # ========================
 # Logs
