@@ -45,8 +45,18 @@ Desktop.ini
 # ========================
 # Datasets (large - download locally, don't push)
 # ========================
-Dataset/
-MNIST/
+Dataset/BSDS300/images/train/
+Dataset/BSDS300/images/test/
+!Dataset/BSDS300/images/test/101085.jpg
+!Dataset/BSDS300/images/test/102061.jpg
+!Dataset/BSDS300/images/test/108005.jpg
+!Dataset/BSDS300/images/test/126007.jpg
+!Dataset/BSDS300/images/test/167062.jpg
+!Dataset/BSDS300/images/test/175032.jpg
+!Dataset/BSDS300/images/test/208001.jpg
+!Dataset/BSDS300/images/test/253027.jpg
+!Dataset/BSDS300/images/test/291000.jpg
+!Dataset/BSDS300/images/test/3096.jpg
 
 # ========================
 # Results (generated outputs)
