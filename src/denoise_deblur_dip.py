@@ -49,7 +49,7 @@ num_iter = DIP_PARAMS['num_iter']
 input_depth = DIP_PARAMS['input_depth']
 figsize = DIP_PARAMS['figsize']
 
-def dip_single(img_clean_pil, img_clean_np, y, ind, verbose=False, deblur=False):
+def dip_single(img_clean_pil, img_clean_np, y, ind, verbose=False, deblur=False):   #y is the observation
     
     if (img_clean_np.shape[0]) == 1:
         n_channels = 1
@@ -68,8 +68,7 @@ def dip_single(img_clean_pil, img_clean_np, y, ind, verbose=False, deblur=False)
                     n_channels=n_channels,
                     upsample_mode='bilinear')
 
-    # Convert net to the specified dtype
-
+    # Convert net to the specified device
     net = net.to(device)
 
     # Random input to the DIP
@@ -83,10 +82,10 @@ def dip_single(img_clean_pil, img_clean_np, y, ind, verbose=False, deblur=False)
     # Loss
     mse = torch.nn.MSELoss().to(device)
 
-    y_torch = np_to_torch(y).to(device)
+    y_torch = np_to_torch(y).to(device)  #this is the observation
 
     net_input_saved = net_input.detach().clone()
-    noise = net_input.detach().clone()
+    noise = net_input.detach().clone() #.clone() is just will use another variable in another space in memory
     Gz = None
     last_net = None
     psrn_noisy_last = 0
@@ -101,15 +100,15 @@ def dip_single(img_clean_pil, img_clean_np, y, ind, verbose=False, deblur=False)
         if reg_noise_std > 0:
             net_input = net_input_saved + (noise.normal_() * reg_noise_std)
         
-        G = net(net_input)
-        Gz = G.detach()
+        G = net(net_input)    #this is ftheta(z)
+        Gz = G.detach()  #.detach() will make require_grad = False
                 
-        # calculate measurement loss || y - I* G(z) ||^2
+        # calculate measurement loss || y - ftheta(z) ||^2
         total_loss = mse(G, y_torch)        
         total_loss.backward()
         
-        # breakpoint()
-        psrn_noisy = peak_signal_noise_ratio(y, G.detach().cpu().numpy()[0], data_range=np.max(y)) 
+        # breakpoint()  
+        psrn_noisy = peak_signal_noise_ratio(y, G.detach().cpu().numpy()[0], data_range=np.max(y))    #peak_signal_noise_ratio(image_true, image_test)
         psrn_gt    = peak_signal_noise_ratio(img_clean_np, G.detach().cpu().numpy()[0], data_range=np.max(y)) 
         psrn_gt_noisy = peak_signal_noise_ratio(y, G.detach().cpu().numpy()[0], data_range=np.max(y)) 
         if y.shape[0] == 1:
@@ -121,7 +120,6 @@ def dip_single(img_clean_pil, img_clean_np, y, ind, verbose=False, deblur=False)
         sobel_gt = cv2.Sobel(img_clean_np, cv2.CV_64F, 1,1, ksize=5)
         sobel_out = cv2.Sobel(G.detach().cpu().numpy()[0], cv2.CV_64F, 1,1, ksize=5)
         dssim, _ = structural_similarity(sobel_gt, sobel_out, win_size=7, full=True, data_range=1.0, channel_axis=0)
-        
         
         metrics.append({
             "iteration": i, 

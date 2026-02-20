@@ -65,20 +65,11 @@ ADMM_DIP_PARAMS = {
     'input_depth': 3,
     'figsize': 4
 }
-
-# DnCNN denoiser
-DCNN_PARAMS = {
-    'use_bias': False,
-    'hidden_channels': 64,  
-}
-
 ALL_PARAMS = {
     'DIP': DIP_PARAMS,
     'ADMM-DIP': ADMM_DIP_PARAMS,
-    'DCNN': DCNN_PARAMS,
     'BM3D': BM3D_PARAMS
 }
-
 
 
 
