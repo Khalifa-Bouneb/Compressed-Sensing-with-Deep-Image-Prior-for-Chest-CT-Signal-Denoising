@@ -192,7 +192,7 @@ def main():
     args = parser.parse_args()
     
     # Get test images
-    dataset_path = Path(__file__).parent / 'Dataset' / 'BSDS300' / 'images' / 'test'
+    dataset_path = Path(__file__).parent / 'Dataset' / 'BSDS300' / 'BSDS300' / 'images' / 'test'
     
     if not dataset_path.exists():
         print(f"Error: Dataset not found at {dataset_path}")
