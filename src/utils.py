@@ -64,7 +64,7 @@ def zero_pad(image, shape, position='corner'):
     shape = np.asarray(shape, dtype=int)
     imshape = np.asarray(image.shape, dtype=int)
 
-    if np.alltrue(imshape == shape):
+    if np.all(imshape == shape):
         return image
 
     if np.any(shape <= 0):
@@ -179,7 +179,7 @@ def plot_image_grid(images_np, nrow =8, factor=1, interpolation='lanczos', view 
 
     grid = get_image_grid(images_np, nrow)
     
-    plt.figure()
+    fig = plt.figure()
     
     if images_np[0].shape[0] == 1:
         plt.imshow(grid[0], cmap='gray', interpolation=interpolation)
@@ -191,6 +191,7 @@ def plot_image_grid(images_np, nrow =8, factor=1, interpolation='lanczos', view 
     
     if view:
         plt.show()
+    plt.close(fig)
 
     return grid
 

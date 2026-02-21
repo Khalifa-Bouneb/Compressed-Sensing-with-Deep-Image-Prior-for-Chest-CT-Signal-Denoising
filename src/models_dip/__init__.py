@@ -3,6 +3,7 @@ from .texture_nets import get_texture_nets
 from .resnet import ResNet
 from .unet import UNet
 from .simple_cnn import SimpleCNN
+from .DCGAN import dcgan
 
 import torch.nn as nn
 
@@ -39,7 +40,16 @@ def get_net(input_depth, NET_TYPE, pad, upsample_mode, n_channels=3, act_fun='Le
     elif NET_TYPE == 'identity':
         assert input_depth == 3
         net = nn.Sequential()
+    elif NET_TYPE == 'dcgan':
+        net = dcgan(
+        inp=input_depth,
+        n_channels=n_channels,
+        need_sigmoid=True,
+        need_bias=True,
+        upsample_mode=upsample_mode
+    )
     else:
         assert False
 
     return net
+

@@ -60,7 +60,7 @@ def dip_single(img_clean_pil, img_clean_np, y, ind, verbose=False, deblur=False)
         skip_n11 = 16
     else:
         skip_n11 = 4
-    net = get_net(input_depth, 'skip', pad,   #input_depth is 32 for a random noise input
+    net = get_net(input_depth, 'dcgan', pad,   #input_depth is 32 for a random noise input
                     skip_n33d=128, 
                     skip_n33u=128, 
                     skip_n11=skip_n11, 
@@ -110,7 +110,6 @@ def dip_single(img_clean_pil, img_clean_np, y, ind, verbose=False, deblur=False)
         # breakpoint()  
         psrn_noisy = peak_signal_noise_ratio(y, G.detach().cpu().numpy()[0], data_range=np.max(y))    #peak_signal_noise_ratio(image_true, image_test)
         psrn_gt    = peak_signal_noise_ratio(img_clean_np, G.detach().cpu().numpy()[0], data_range=np.max(y)) 
-        psrn_gt_noisy = peak_signal_noise_ratio(y, G.detach().cpu().numpy()[0], data_range=np.max(y)) 
         if y.shape[0] == 1:
             ssim_gt, _ = structural_similarity(img_clean_np.squeeze(0), G.detach().cpu().numpy()[0].squeeze(0), data_range= 1.0, full=True, channel_axis=0)
         else:
@@ -125,7 +124,6 @@ def dip_single(img_clean_pil, img_clean_np, y, ind, verbose=False, deblur=False)
             "iteration": i, 
             "PSNR_noisy": psrn_noisy, 
             "PSNR_gt": psrn_gt, 
-            "PSNR_gt_noisy": psrn_gt_noisy,
             "SSIM_gt": ssim_gt,
             #"SSIM_gt_noisy": ssim_gt_noisy,
             "DSSIM": dssim,
@@ -133,7 +131,7 @@ def dip_single(img_clean_pil, img_clean_np, y, ind, verbose=False, deblur=False)
         })
         
         sigma = DIP_PARAMS['sigma']
-        print ('Iteration %05d    Loss %f   PSNR_noisy: %f   PSRN_gt: %f PSNR_gt_sm: %f' % (i, total_loss.item(), psrn_noisy, psrn_gt, psrn_noisy), '\r', end='')
+        print ('Iteration %05d    Loss %f   PSNR_noisy: %f   PSRN_gt: %f' % (i, total_loss.item(), psrn_noisy, psrn_gt), '\r', end='')
         if  PLOT and ((i % show_every == 0) or (i == num_iter-1)):
             out_np = torch_to_np(G)
             if deblur:

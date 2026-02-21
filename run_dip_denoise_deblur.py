@@ -24,6 +24,8 @@ from src.config import *
 from src.models_dip import *
 from src.utils import *
 from src.denoise_deblur_dip import *
+from src.denoise_dip_tv import *
+from src.baselines import bm3d_denoise
 from PIL import Image
 import torchvision.transforms.functional as TF
 import torchvision.transforms as T
@@ -144,12 +146,63 @@ def run_method(dataset, dataset_name="BSDS300", task="denoise", method= "DIP", f
                     sigma = ALL_PARAMS[method]["sigma"]
                     img_noisy_np = add_noise(img_tensor, sigma).numpy()    
                     metrics_all = []
+                    bm3d_psnr = None
+                    dip_final_psnr = None
+                    bm3d_result_chw = None
+
+                    if img_noisy_np.shape[0] == 1:
+                        noisy_for_bm3d = img_noisy_np.squeeze(0)
+                    else:
+                        noisy_for_bm3d = img_noisy_np.transpose(1, 2, 0)
+
+                    try:
+                        bm3d_result = bm3d_denoise(noisy_for_bm3d, sigma=sigma)
+                        if bm3d_result.ndim == 2:
+                            bm3d_result_chw = bm3d_result[None, ...]
+                        else:
+                            bm3d_result_chw = bm3d_result.transpose(2, 0, 1)
+                        bm3d_psnr = calc_psnr(bm3d_result_chw, img_np)
+                    except ImportError as err:
+                        print(f"BM3D unavailable ({err}); skipping BM3D metrics/plot for image {i+1}.")
                     
                     if method == "DIP":
                         metrics, output = dip_single(img_pil, img_np, img_noisy_np, i+1, verbose=verbose)
+                        with torch.no_grad():
+                            dip_result = np.clip(torch_to_np(output[0](output[1])), 0, 1)
+                        dip_final_psnr = calc_psnr(dip_result, img_np)
+
+                        if bm3d_result_chw is not None:
+                            fig, axes = plt.subplots(1, 2, figsize=(10, 4))
+                            if bm3d_result_chw.shape[0] == 1:
+                                axes[0].imshow(bm3d_result_chw[0], cmap="gray")
+                                axes[1].imshow(dip_result[0], cmap="gray")
+                            else:
+                                axes[0].imshow(np.transpose(bm3d_result_chw, (1, 2, 0)))
+                                axes[1].imshow(np.transpose(dip_result, (1, 2, 0)))
+                            axes[0].set_title(f"BM3D (PSNR={bm3d_psnr:.2f} dB)")
+                            axes[1].set_title(f"DIP (PSNR={dip_final_psnr:.2f} dB)")
+                            for ax in axes:
+                                ax.axis("off")
+                            fig.tight_layout()
+                            fig.savefig(fsavepath + "/denoise/" + method + f"/comparison_image={i+1}.png")
+                            plt.close(fig)
+
+                        metrics.append({
+                            "method": "BM3D",
+                            "PSNR_gt": bm3d_psnr,
+                            "sigma": sigma
+                        })
+                        metrics.append({
+                            "method": "DIP_final",
+                            "PSNR_gt": dip_final_psnr,
+                            "sigma": sigma
+                        })
                         with open(fsavepath + "/denoise/" + method + f"/model_image={i+1}.pkl", "wb") as f:
                             pickle.dump(output, f)
-                    
+                    elif method == "ADMM-DIP":
+                        metrics, output = admm_dip_single(img_pil, img_np, img_noisy_np, i+1 , verbose = verbose)
+                        with open (fsavepath + '/denoise/' + method + f"/model_image={i+1}.pkl", "wb") as f :
+                            pickle.dump(output, f)
                     else:
                         assert False
                     
