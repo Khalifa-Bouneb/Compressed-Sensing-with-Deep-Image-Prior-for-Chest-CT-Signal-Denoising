@@ -242,4 +242,4 @@ def run_method(dataset, dataset_name="BSDS300", task="denoise", method= "DIP", f
 
 if __name__ == "__main__":
     dataset = BSDS300Dataset(split="test", use_patches=False)
-    run_method(dataset, task="deblur", method="DIP")
+    run_method(dataset, task="denoise", method="DIP")

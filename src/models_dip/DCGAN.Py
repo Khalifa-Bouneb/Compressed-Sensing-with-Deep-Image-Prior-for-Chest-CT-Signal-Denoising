@@ -17,23 +17,28 @@ class _ResizeToInput(nn.Module):
 
 
 class _DCGANWrapper(nn.Module):
-    def __init__(self, model, resize_mode='bilinear'):
+    def __init__(self, model, output_size, resize_mode='bilinear'):
         super().__init__()
         self.model = model
+        self.output_size = output_size          # (H, W) of target image
         self.resizer = _ResizeToInput(mode=resize_mode)
 
     def forward(self, x):
         out = self.model(x)
-        return self.resizer(out, x)
+        if out.shape[-2:] != self.output_size:
+            out = F.interpolate(out, size=self.output_size, mode=self.resizer.mode,
+                                align_corners=False if self.resizer.mode == 'bilinear' else None)
+        return out
 
 def dcgan(inp=2,
           ndf=32,
-          num_ups=4,
+          num_ups=8,
           n_channels=3,
           need_sigmoid=True,
           need_bias=True,
           upsample_mode='nearest',
-          need_convT=True):
+          need_convT=False,
+          output_size=None):
 
     layers = [
         nn.ConvTranspose2d(inp, ndf, kernel_size=3, stride=1, padding=0, bias=need_bias),
@@ -41,7 +46,7 @@ def dcgan(inp=2,
         nn.LeakyReLU(0.2, inplace=True)
     ]
 
-    for _ in range(num_ups - 3):
+    for _ in range(num_ups - 1):
         if need_convT:
             layers += [
                 nn.ConvTranspose2d(ndf, ndf, kernel_size=4, stride=2, padding=1, bias=need_bias),
@@ -70,4 +75,5 @@ def dcgan(inp=2,
         layers += [nn.Sigmoid()]
 
     model = nn.Sequential(*layers)
-    return _DCGANWrapper(model, resize_mode=upsample_mode)
+    return _DCGANWrapper(model, output_size=output_size, resize_mode=upsample_mode)
+

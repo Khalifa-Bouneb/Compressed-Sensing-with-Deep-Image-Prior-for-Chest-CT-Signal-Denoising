@@ -60,19 +60,27 @@ def dip_single(img_clean_pil, img_clean_np, y, ind, verbose=False, deblur=False)
         skip_n11 = 16
     else:
         skip_n11 = 4
-    net = get_net(input_depth, 'dcgan', pad,   #input_depth is 32 for a random noise input
-                    skip_n33d=128, 
-                    skip_n33u=128, 
-                    skip_n11=skip_n11, 
-                    num_scales=5,
-                    n_channels=n_channels,
-                    upsample_mode='bilinear')
+
+    img_h, img_w = img_clean_pil.size[1], img_clean_pil.size[0]
+
+    net = dcgan(
+            inp=input_depth,
+            ndf=128,
+            num_ups=8,                        # enough for your image size
+            n_channels=n_channels,
+            need_sigmoid=True,
+            upsample_mode='bilinear',
+            need_convT=False,                 # no checkerboard
+            output_size=(img_h, img_w)        # fix Bug 1
+        ).to(device)
 
     # Convert net to the specified device
     net = net.to(device)
 
     # Random input to the DIP
-    net_input = get_noise(input_depth, INPUT, (img_clean_pil.size[1], img_clean_pil.size[0])).to(device).detach()
+    net_input = torch.randn(1, input_depth, 1, 1).to(device).detach()
+
+    # net_input = get_noise(input_depth, INPUT, (img_clean_pil.size[1], img_clean_pil.size[0])).to(device).detach()
 
     # Compute number of parameters
     if verbose:
@@ -159,14 +167,14 @@ def dip_single(img_clean_pil, img_clean_np, y, ind, verbose=False, deblur=False)
 
         return total_loss
 
-    # early_stopping_patience = 20
-    # early_stopping_counter = 0
-    # min_delta = 0.001
-    # best_loss = float('inf')
+    early_stopping_patience = 20
+    early_stopping_counter = 0
+    min_delta = 0.001
+    best_loss = float('inf')
     
     p = get_params(OPT_OVER, net, net_input)
     optimizer = torch.optim.Adam(p, lr=LR)
-    #dip_optimize(OPTIMIZER, p, closure, LR, num_iter)
+    dip_optimize(OPTIMIZER, p, closure, LR, num_iter)
     
     for j in range(num_iter):
         optimizer.zero_grad()
