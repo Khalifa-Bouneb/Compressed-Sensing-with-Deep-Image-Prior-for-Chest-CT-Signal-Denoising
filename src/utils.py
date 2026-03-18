@@ -517,6 +517,7 @@ def process_subset(subset, d=32, blur=False):
     processed_images_tensors = []
     for img_tensor in subset:
         # breakpoint()
+
         img_pil, img_tensor_processed = process_image_tensor(img_tensor, d=d, blur=blur)
         processed_images_pil.append(img_pil)
         processed_images_tensors.append(img_tensor_processed)
