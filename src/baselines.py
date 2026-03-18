@@ -100,7 +100,7 @@ def wiener_deconvolution_fft(degraded: np.ndarray,
         Blur kernel (PSF).
     nsr : float
         Noise-to-Signal Ratio (inverse of SNR).
-        
+
     Returns
     -------
     np.ndarray
@@ -125,7 +125,7 @@ def wiener_deconvolution_fft(degraded: np.ndarray,
     # FFT
     Y = fft2(degraded)
     H = fft2(kernel_padded)
-    
+
     # Wiener filter
     H_conj = np.conj(H)
     H_abs_sq = np.abs(H) ** 2
@@ -163,7 +163,7 @@ def bm3d_denoise(noisy: np.ndarray,
     profile : str
         BM3D profile: 'np' (normal), 'lc' (low complexity), 
         'high' (high quality), 'vn' (very noisy).
-        
+    
     Returns
     -------
     np.ndarray
