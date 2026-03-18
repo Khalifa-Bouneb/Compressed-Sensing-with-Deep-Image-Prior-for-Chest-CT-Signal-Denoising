@@ -71,6 +71,9 @@ class BSDS300Dataset(Dataset):
             return self.patches[idx]
         else:
             return self.images[idx]
+
+data =   BSDS300Dataset()
+print(len(data))
         
 class BlurredBSDS300Dataset(BSDS300Dataset):
     def __init__(self, root='./Dataset/BSDS300/BSDS300', patch_size=32, split='train', use_patches=True,
@@ -223,7 +226,7 @@ def run_method(dataset, dataset_name="BSDS300", task="denoise", method= "DIP", f
                     gt_pil.save(fsavepath + "/deblur/" + f"gt{idx}.png")
                     img = img + SMART_DEBLUR_DIP_PARAMS["sigma"]*torch.randn_like(img)
                     idx += 1
-             
+            
                 if method == "DIP":
                     idx = 0
                     for img, gt, kernel in subset:

@@ -49,7 +49,7 @@ num_iter = DIP_PARAMS['num_iter']
 input_depth = DIP_PARAMS['input_depth']
 figsize = DIP_PARAMS['figsize']
 
-def dip_single(img_clean_pil, img_clean_np, y, ind, verbose=False, deblur=False):   #y is the observation
+def dip_single(img_clean_pil, img_clean_np, y, ind, verbose=False, deblur=False):   #y is the observation (np noisy image)
     
     if (img_clean_np.shape[0]) == 1:
         n_channels = 1
@@ -63,24 +63,35 @@ def dip_single(img_clean_pil, img_clean_np, y, ind, verbose=False, deblur=False)
 
     img_h, img_w = img_clean_pil.size[1], img_clean_pil.size[0]
 
-    net = dcgan(
-            inp=input_depth,
-            ndf=128,
-            num_ups=8,                        # enough for your image size
-            n_channels=n_channels,
-            need_sigmoid=True,
-            upsample_mode='bilinear',
-            need_convT=False,                 # no checkerboard
-            output_size=(img_h, img_w)        # fix Bug 1
-        ).to(device)
+    # net = dcgan(
+    #         inp=input_depth,
+    #         ndf=128,
+    #         num_ups=8,                        # enough for your image size
+    #         n_channels=n_channels,
+    #         need_sigmoid=True,
+    #         upsample_mode='bilinear',
+    #         need_convT=False,                 # no checkerboard
+    #         output_size=(img_h, img_w)        # fix Bug 1
+    #     ).to(device)
 
+
+    net = get_net(input_depth, 'skip', pad,
+                skip_n33d=128, 
+                skip_n33u=128, 
+                skip_n11=skip_n11, 
+                num_scales=5,
+                n_channels=n_channels,
+                upsample_mode='bilinear')
+
+
+    # input_depth = 32
     # Convert net to the specified device
     net = net.to(device)
 
     # Random input to the DIP
-    net_input = torch.randn(1, input_depth, 1, 1).to(device).detach()
+    # net_input = torch.randn(1, input_depth, 1, 1).to(device).detach()     
 
-    # net_input = get_noise(input_depth, INPUT, (img_clean_pil.size[1], img_clean_pil.size[0])).to(device).detach()
+    net_input = get_noise(input_depth, 'noise', (img_clean_pil.size[1], img_clean_pil.size[0])).to(device).detach()  # 1 x input_depth x H x W
 
     # Compute number of parameters
     if verbose:
