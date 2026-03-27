@@ -32,7 +32,15 @@ import torchvision.transforms as T
 from torchvision.datasets import MNIST
 from torchvision.transforms import Compose, Lambda, ToTensor
 
-####################################################################
+from src.hw5_task2 import run_hw5
+from src.bm3d_wrapper import bm3d_single
+from src.hw5_task3 import *
+
+methods_denoise = ["DCNN", "BM3D", "DIP", "ADMM-DIP"]
+methods_hw_deblur = ["weiner", "deblur_denoise", "denoise"]
+methods_deblur = ["task3", "smart_dip_deblur", "dip", "admm_dip"]
+                
+##############
 class BSDS300Dataset(Dataset):
     def __init__(self, root='./Dataset/BSDS300/BSDS300', patch_size=32, split='train', use_patches=True):
         files = sorted(glob(os.path.join(root, 'images', split, '*')))
@@ -71,9 +79,6 @@ class BSDS300Dataset(Dataset):
             return self.patches[idx]
         else:
             return self.images[idx]
-
-data =   BSDS300Dataset()
-print(len(data))
         
 class BlurredBSDS300Dataset(BSDS300Dataset):
     def __init__(self, root='./Dataset/BSDS300/BSDS300', patch_size=32, split='train', use_patches=True,
@@ -122,112 +127,98 @@ class BlurredBSDS300Dataset(BSDS300Dataset):
 
         return out
         
-####################################################################
+##############
 
-def run_method(dataset, dataset_name="BSDS300", task="denoise", method= "DIP", fsavepath="./results", verbose=False, sigma=0.01):
+def run_method(dataset, dataset_name="BSDS300", task="denoise", method= "DIP", fsavepath="../results", verbose=False, sigma=0.01):
         if not os.path.exists(fsavepath):
             os.makedirs(fsavepath)
             
         print(f"Running {method} on {dataset_name} for {task}")
             
         if dataset_name == "BSDS300":   
-            subset = get_random_subset(dataset, subset_size=1)
+            subset = get_random_subset(dataset, subset_size=1) ####CHANGE THIS TO 1 FOR FINAL RUN
             
-            processed_pils, processed_tensors = process_subset(subset)
+            processed_pils, processed_tensors = process_subset(subset)     
             n = len(processed_pils)
-            print(n)
             if task == "denoise":
                 if not os.path.exists(fsavepath + "/denoise/" + method):
                     os.makedirs(fsavepath + "/denoise/" + method)
-                
-            
-                for i in range(n):
-                    img_pil = processed_pils[i]
-                    img_tensor = processed_tensors[i]
-                    img_np = processed_tensors[i].numpy()
                     
-                    sigma = ALL_PARAMS[method]["sigma"]
-                    img_noisy_np = add_noise(img_tensor, sigma).numpy()    
-                    metrics_all = []
-                    bm3d_psnr = None
-                    dip_final_psnr = None
-                    bm3d_result_chw = None
-
-                    if img_noisy_np.shape[0] == 1:
-                        noisy_for_bm3d = img_noisy_np.squeeze(0)
-                    else:
-                        noisy_for_bm3d = img_noisy_np.transpose(1, 2, 0)
-
-                    try:
-                        bm3d_result = bm3d_denoise(noisy_for_bm3d, sigma=sigma)
-                        if bm3d_result.ndim == 2:
-                            bm3d_result_chw = bm3d_result[None, ...]
-                        else:
-                            bm3d_result_chw = bm3d_result.transpose(2, 0, 1)
-                        bm3d_psnr = calc_psnr(bm3d_result_chw, img_np)
-                    except ImportError as err:
-                        print(f"BM3D unavailable ({err}); skipping BM3D metrics/plot for image {i+1}.")
-                    
-                    if method == "DIP":
-                        metrics, output = dip_single(img_pil, img_np, img_noisy_np, i+1, verbose=verbose)
-                        with torch.no_grad():
-                            dip_result = np.clip(torch_to_np(output[0](output[1])), 0, 1)
-                        dip_final_psnr = calc_psnr(dip_result, img_np)
-
-                        if bm3d_result_chw is not None:
-                            fig, axes = plt.subplots(1, 2, figsize=(10, 4))
-                            if bm3d_result_chw.shape[0] == 1:
-                                axes[0].imshow(bm3d_result_chw[0], cmap="gray")
-                                axes[1].imshow(dip_result[0], cmap="gray")
-                            else:
-                                axes[0].imshow(np.transpose(bm3d_result_chw, (1, 2, 0)))
-                                axes[1].imshow(np.transpose(dip_result, (1, 2, 0)))
-                            axes[0].set_title(f"BM3D (PSNR={bm3d_psnr:.2f} dB)")
-                            axes[1].set_title(f"DIP (PSNR={dip_final_psnr:.2f} dB)")
-                            for ax in axes:
-                                ax.axis("off")
-                            fig.tight_layout()
-                            fig.savefig(fsavepath + "/denoise/" + method + f"/comparison_image={i+1}.png")
-                            plt.close(fig)
-
-                        metrics.append({
-                            "method": "BM3D",
-                            "PSNR_gt": bm3d_psnr,
-                            "sigma": sigma
-                        })
-                        metrics.append({
-                            "method": "DIP_final",
-                            "PSNR_gt": dip_final_psnr,
-                            "sigma": sigma
-                        })
-                        with open(fsavepath + "/denoise/" + method + f"/model_image={i+1}.pkl", "wb") as f:
-                            pickle.dump(output, f)
-                    elif method == "ADMM-DIP":
-                        metrics, output = admm_dip_single(img_pil, img_np, img_noisy_np, i+1 , verbose = verbose)
-                        with open (fsavepath + '/denoise/' + method + f"/model_image={i+1}.pkl", "wb") as f :
-                            pickle.dump(output, f)
-                    else:
-                        assert False
-                    
-                    metrics_all.append(metrics)
-                    
-                    # Save metrics
-                    os.makedirs(fsavepath + "/denoise/" + method, exist_ok=True)
-                    with open(fsavepath + "/denoise/" + method + f"/metrics_image={i+1}.pkl", "wb") as f:
+                if method == "DCNN":
+                    metrics, model = run_hw5(subset)
+                    with open(fsavepath + "/denoise/" + method + "/SPECKLE_model_sigma=0.10.pkl", "wb") as f:
+                        pickle.dump(model, f)
+                        
+                    with open(fsavepath + "/denoise/" + method + "/SPECKLE_metrics_sigma=0.10.pkl", "wb") as f:
                         pickle.dump(metrics, f)
-
+                
+                else:
+                    for i in range(n):
+                        img_pil = processed_pils[i]
+                        img_tensor = processed_tensors[i]
+                        img_np = processed_tensors[i].numpy()
+                        
+                        sigma = ALL_PARAMS[method]["sigma"]
+                        img_noisy_np = add_noise(img_tensor, sigma).numpy()
+                        metrics_all = []
+                        
+                        if method == "BM3D":
+                            metrics, output = bm3d_single(img_pil, img_np, img_noisy_np, i+1, verbose=verbose)
+                        elif method == "DIP":
+                            metrics, output = dip_single(img_pil, img_np, img_noisy_np, i+1, verbose=verbose)
+                            with open(fsavepath + "/denoise/" + method + f"/model_image={i+1}.pkl", "wb") as f:
+                                pickle.dump(output, f)
+                        elif method == "ADMM-DIP":
+                            metrics, output = admm_dip_single(img_pil, img_np, img_noisy_np, i+1, verbose=verbose)
+                            with open(fsavepath + "/denoise/" + method + f"/model_image={i+1}.pkl", "wb") as f:
+                                pickle.dump(output, f)
+                        else :
+                            assert False
+                        
+                        metrics_all.append(metrics)
+                        
+                        # Save metrics
+                        os.makedirs(fsavepath + "/denoise/" + method, exist_ok=True)
+                        with open(fsavepath + "/denoise/" + method + f"/metrics_image={i+1}.pkl", "wb") as f:
+                            pickle.dump(metrics, f)
             elif task == "deblur":
                 dataset = BlurredBSDS300Dataset(split='test', kernel_size=7)
                 subset = dataset
-                os.makedirs(fsavepath + "/deblur/" + method, exist_ok=True)
                 idx=0
                 for img, gt, kernel in subset:
                     gt_pil = TF.to_pil_image(gt.squeeze(0))
                     gt_pil.save(fsavepath + "/deblur/" + f"gt{idx}.png")
                     img = img + SMART_DEBLUR_DIP_PARAMS["sigma"]*torch.randn_like(img)
                     idx += 1
-            
-                if method == "DIP":
+                if method in methods_hw_deblur:
+                    method = "task3"
+                    if not os.path.exists(fsavepath + "/deblur/" + method):
+                        os.makedirs(fsavepath + "/deblur/" + method)  
+                        
+                    metrics = run_hw5_task3(subset, sigma_in=sigma)
+                    print(metrics)
+                    with open(fsavepath + "/deblur/" + method + f"/metrics_image_tot_hw5_task3.pkl", "wb") as f:
+                        pickle.dump(metrics, f)
+                    # with open(fsavepath + "/deblur/" + method + f"/out_dump_hw5_task3.pkl", "wb") as f:
+                    #     pickle.dump(out_dump, f)
+                elif method == "SDDP":
+                    ind = 0
+                    if not os.path.exists(fsavepath + "/deblur/" + method):
+                        os.makedirs(fsavepath + "/deblur/" + method)  
+                        
+                    for img, gt, kernel in subset:
+                        size1 = kernel.shape[-1]
+                        img_np = img.squeeze(0).numpy()
+                        gt_pil = TF.to_pil_image(gt.squeeze(0))
+                        gt_np = gt.squeeze(0).numpy()
+                        #metrics, out_dump = smart_dip_deblur(gt_pil, gt_np, img_np, size1, ind, fsave=fsavepath + "/deblur/" + method, verbose=verbose)
+                        
+                        os.makedirs(fsavepath + "/deblur/" + method, exist_ok=True)
+                        with open(fsavepath + "/deblur/" + method + f"/metrics_image={ind+1}.pkl", "wb") as f:
+                            pickle.dump(metrics, f)
+                        
+                        ind += 1
+                elif method == "DIP":
                     idx = 0
                     for img, gt, kernel in subset:
                         idx += 1
@@ -240,9 +231,51 @@ def run_method(dataset, dataset_name="BSDS300", task="denoise", method= "DIP", f
                             pickle.dump(output, f)
                         with open(fsavepath + "/deblur/" + method + f"/metrics_image={idx}.pkl", "wb") as f:
                             pickle.dump(metrics, f)
-            
+                elif method == "all":
+                    idx = 0
+                    for img, gt, kernel in subset:
+                        idx += 1
+                        size1 = kernel.shape[-1]
+                        img_np = img.squeeze(0).numpy()
+                        gt_pil = TF.to_pil_image(gt.squeeze(0))
+                        gt_np = gt.squeeze(0).numpy()
+                        
+                        for method in methods_deblur:
+                            if method == "task3":
+                                if not os.path.exists(fsavepath + "/deblur/" + method):
+                                    os.makedirs(fsavepath + "/deblur/" + method)  
+                                    
+                                metrics, out_dump = run_hw5_task3(subset, sigma_in=sigma)
+                                print(metrics)
+                                with open(fsavepath + "/deblur/" + method + f"/metrics_image_tot_hw5_task3.pkl", "wb") as f:
+                                    pickle.dump(metrics, f)
+                                with open(fsavepath + "/deblur/" + method + f"/out_dump_hw5_task3.pkl", "wb") as f:
+                                    pickle.dump(out_dump, f)
+                            else:
+                                if not os.path.exists(fsavepath + "/deblur/" + method):
+                                    os.makedirs(fsavepath + "/deblur/" + method)  
+                                if method == "SDDP":
+                                    continue
+                                if method == "DIP":
+                                    metrics, output = dip_single(gt_pil, gt_np, img_np, idx, deblur=True, verbose=verbose)
+                                    with open(fsavepath + "/deblur/" + method + f"/model_image={idx}.pkl", "wb") as f:
+                                        pickle.dump(output, f)
+                                    with open(fsavepath + "/deblur/" + method + f"/metrics_image={idx}.pkl", "wb") as f:
+                                        pickle.dump(metrics, f)
+                        
         print(f"Finished running {method} on {dataset_name} for {task}")
-
-if __name__ == "__main__":
-    dataset = BSDS300Dataset(split="test", use_patches=False)
-    run_method(dataset, task="denoise", method="DIP")
+            
+def run_all_on_dataset(dataset, dataset_name="BSDS300", task="denoise", fsavepath="../results"):
+    if not os.path.exists(fsavepath):
+        os.makedirs(fsavepath)
+    
+    if dataset_name == "BSDS300":   
+        subset = get_random_subset(dataset, subset_size=5)
+        processed_pils, processed_tensors = process_subset(subset)
+        n = len(processed_pils)
+        
+        if task == "denoise":
+            for method in methods_denoise:
+                run_method(dataset, dataset_name, task, method, fsavepath)
+                               
+            

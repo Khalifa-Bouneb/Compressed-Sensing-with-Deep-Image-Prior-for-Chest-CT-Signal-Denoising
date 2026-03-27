@@ -49,7 +49,19 @@ num_iter = DIP_PARAMS['num_iter']
 input_depth = DIP_PARAMS['input_depth']
 figsize = DIP_PARAMS['figsize']
 
-def dip_single(img_clean_pil, img_clean_np, y, ind, verbose=False, deblur=False):   #y is the observation (np noisy image)
+
+def printnn():
+    net = get_net(input_depth, 'skip', pad,
+                skip_n33d=128, 
+                skip_n33u=128, 
+                skip_n11=4, 
+                num_scales=5,
+                n_channels=3,
+                upsample_mode='bilinear').to(device)
+    return net
+
+
+def dip_single(img_clean_pil, img_clean_np, y, ind, verbose=False, deblur=False):   #y is the observation (np noisy image) of size 3 x 321 x 481 (np)
     
     if (img_clean_np.shape[0]) == 1:
         n_channels = 1
@@ -82,11 +94,17 @@ def dip_single(img_clean_pil, img_clean_np, y, ind, verbose=False, deblur=False)
                 num_scales=5,
                 n_channels=n_channels,
                 upsample_mode='bilinear')
+    
 
 
     # input_depth = 32
     # Convert net to the specified device
     net = net.to(device)
+    # print(net)
+
+
+
+
 
     # Random input to the DIP
     # net_input = torch.randn(1, input_depth, 1, 1).to(device).detach()     
@@ -122,7 +140,7 @@ def dip_single(img_clean_pil, img_clean_np, y, ind, verbose=False, deblur=False)
         G = net(net_input)    #this is ftheta(z)
         Gz = G.detach()  #.detach() will make require_grad = False
                 
-        # calculate measurement loss || y - ftheta(z) ||^2
+        # calculate measurement loss || y - ftheta(z) ||^2  y is the noisy image and ftheta(z) is the output of the network
         total_loss = mse(G, y_torch)        
         total_loss.backward()
         
@@ -193,4 +211,4 @@ def dip_single(img_clean_pil, img_clean_np, y, ind, verbose=False, deblur=False)
         optimizer.step()
     
     out_dump = [net, net_input]
-    return metrics, out_dump
+    return metrics, out_dump, net
