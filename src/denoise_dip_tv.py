@@ -1,3 +1,12 @@
+"""
+Rohan Sanda 2024
+This code is adapted from Cascarano et al., 2020, "Combining Weighted Total Variation and Deep 
+Image Prior for natural and medical image restoration via ADMM"
+
+Repo: https://github.com/sedaboni/ADMM-DIPTV/tree/master
+"""
+
+
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
@@ -16,15 +25,19 @@ import cv2
 torch.manual_seed(1)
 np.random.seed(1)
 
-torch.use_deterministic_algorithms(True)
+torch.backends.cudnn.benchmark = True
+torch.use_deterministic_algorithms(False)
 
 matplotlib.rcParams['figure.raise_window'] = False
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-from src.config import *
-from src.models_dip import *
-from src.utils import *
+print(device)
 
+
+from .config import *
+from .models_dip import *
+from .utils import *
+from .hw5_task2 import BSDS300Dataset
 
 # Set config params
 imsize = ADMM_DIP_PARAMS['imsize']
@@ -46,7 +59,7 @@ figsize = ADMM_DIP_PARAMS['figsize']
 
 def admm_dip_single(img_pil, img_clean_np, y, ind, verbose=False):
     
-    net = get_net(input_depth, 'dcgan', pad,
+    net = get_net(input_depth, 'skip', pad,
                     skip_n33d=128, 
                     skip_n33u=128, 
                     skip_n11=4, 
@@ -55,11 +68,11 @@ def admm_dip_single(img_pil, img_clean_np, y, ind, verbose=False):
 
 
     # Convert net to the specified dtype
+    # net = net.type(dtype)
     net = net.to(device)
 
+    # net_input = get_noise(input_depth, INPUT, (img_pil.size[1], img_pil.size[0])).type(dtype).detach()
     net_input = get_noise(input_depth, INPUT, (img_pil.size[1], img_pil.size[0])).to(device).detach()
-
-
     # Compute number of parameters
     if verbose:
         s  = sum([np.prod(list(p.size())) for p in net.parameters()])
@@ -75,16 +88,20 @@ def admm_dip_single(img_pil, img_clean_np, y, ind, verbose=False):
     Dh_psf = np.array([ [0, 0, 0], [1, -1, 0], [0, 0, 0]])
     Dv_psf = np.array([ [0, 1, 0], [0, -1, 0], [0, 0, 0]])
 
-    # Build 2D OTFs with numpy helper, then move to torch/device.
-    # Shape as [1, 1, H, W] so they broadcast over batch/channel in D(...).
-    Dh_DFT = torch.from_numpy(psf2otf_bak(Dh_psf, [h, w]).astype(np.complex64))[None, None, ...].to(device)
-    Dv_DFT = torch.from_numpy(psf2otf_bak(Dv_psf, [h, w]).astype(np.complex64))[None, None, ...].to(device)
-    
-    img_noisy_torch = np_to_torch(y).to(device=device, dtype=torch.float32)
-    t_h = torch.zeros_like(img_noisy_torch)
-    t_v = torch.zeros_like(img_noisy_torch)
-    mu_t_h = torch.zeros_like(img_noisy_torch)
-    mu_t_v = torch.zeros_like(img_noisy_torch)
+    # Dh_DFT = torch.from_numpy(psf2otf(Dh_psf, [h,w]))
+    # Dv_DFT = torch.from_numpy(psf2otf(Dv_psf, [h,w]))
+    Dh_DFT = torch.from_numpy(psf2otf(Dh_psf, [h,w])).to(device)
+    Dv_DFT = torch.from_numpy(psf2otf(Dv_psf, [h,w])).to(device)
+
+
+    # img_noisy_torch = np_to_torch(y).type(dtype)
+    img_noisy_torch = np_to_torch(y).to(device) 
+    u = 0*img_noisy_torch.detach().clone()
+    t_h = 0*img_noisy_torch.detach().clone()
+    t_v = 0*img_noisy_torch.detach().clone()
+
+    mu_t_h = torch.zeros_like(img_noisy_torch, device=device)
+    mu_t_v = torch.zeros_like(img_noisy_torch, device=device)
 
     # Hyperparameters to tune
     beta_t = 25
@@ -132,9 +149,9 @@ def admm_dip_single(img_pil, img_clean_np, y, ind, verbose=False):
         t_h                 = (q_norm * q_h).detach().clone()
         t_v                 = (q_norm * q_v).detach().clone()
 
-        #Ascent step: updating lagrangian parameter
-        mu_t_h = (mu_t_h + (Dh_out- t_h)).detach().clone()
-        mu_t_v = (mu_t_v + (Dv_out- t_v)).detach().clone()
+        # Ascent step: update the dual variables on the same device as the image tensors.
+        mu_t_h = (mu_t_h + (Dh_out - t_h)).detach().clone()
+        mu_t_v = (mu_t_v + (Dv_out - t_v)).detach().clone()
 
         psrn_noisy = compare_psnr(y, out.detach().cpu().numpy()[0]) 
         psrn_gt    = compare_psnr(img_clean_np, out.detach().cpu().numpy()[0]) 
@@ -162,7 +179,7 @@ def admm_dip_single(img_pil, img_clean_np, y, ind, verbose=False):
         
         if  PLOT and ((i % show_every == 0) or (i == num_iter-1)):
             out_np = torch_to_np(out)
-            plot_image_grid([np.clip(out_np, 0, 1), y], factor=figsize, index=i, view=verbose, prefix= "ADMM-DIP", tag=f"sigma{sigma}", tag1=f"image={ind}")
+            plot_image_grid([np.clip(out_np, 0, 1), y, img_clean_np], factor=figsize, index=i, view=verbose, prefix= "ADMM-DIP", tag=f"sigma{sigma}", tag1=f"image={ind}")
     
         out_dump = [net, net_input]
     return metrics, out_dump      

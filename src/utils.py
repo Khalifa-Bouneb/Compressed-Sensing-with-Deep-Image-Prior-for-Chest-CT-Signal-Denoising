@@ -13,8 +13,28 @@ import matplotlib.pyplot as plt
 from torch.fft import fft2, ifft2
 
 def psf2otf(psf, shape):
+    if isinstance(psf, np.ndarray):
+        inshape = psf.shape
+        psf_tensor = torch.from_numpy(psf)
+        psf_tensor = torch.nn.functional.pad(
+            psf_tensor,
+            (0, shape[-1] - inshape[-1], 0, shape[-2] - inshape[-2])
+        )
+        psf_tensor = torch.roll(
+            psf_tensor,
+            shifts=(-int(inshape[-1] / 2), -int(inshape[-2] / 2)),
+            dims=(-1, -2)
+        )
+        return fft2(psf_tensor).cpu().numpy()
+
     inshape = psf.shape
-    psf = torch.nn.functional.pad(psf, (0, shape[-1] - inshape[-1], 0, shape[-2] - inshape[-2], 0, 0))
+    pad_dims = (0, shape[-1] - inshape[-1], 0, shape[-2] - inshape[-2])
+    if psf.ndim == 4:
+        pad_dims = pad_dims + (0, 0, 0, 0)
+    elif psf.ndim == 3:
+        pad_dims = pad_dims + (0, 0)
+
+    psf = torch.nn.functional.pad(psf, pad_dims)
 
     # Circularly shift OTF so that the 'center' of the PSF is [0,0] element of the array
     psf = torch.roll(psf, shifts=(-int(inshape[-1] / 2), -int(inshape[-2] / 2)), dims=(-1, -2))

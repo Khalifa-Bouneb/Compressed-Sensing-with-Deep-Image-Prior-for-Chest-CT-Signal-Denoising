@@ -64,9 +64,9 @@ ADMM_DIP_PARAMS = {
     'reg_noise_std': 1. / 40., 
     'LR': 0.001,
     'OPTIMIZER': 'adam', 
-    'show_every': 3,
+    'show_every': 50,
     'exp_weight': 0,
-    'num_iter': 5,
+    'num_iter': 150,
     'input_depth': 3,
     'figsize': 4
 }
