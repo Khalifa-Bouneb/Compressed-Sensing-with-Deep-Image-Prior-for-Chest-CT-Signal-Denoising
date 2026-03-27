@@ -24,7 +24,7 @@ DIP_PARAMS = {
     'LR': 0.001,            # Learning rate
     'OPTIMIZER': 'adam',  
     'show_every': 400,      # Save metrics and plots every n iterations
-    'num_iter': 2000,       # Number of iterations
+    'num_iter': 500,       # Number of iterations
     'input_depth': 32,      # Number of input channels for pure noise input to DIP model
     'figsize': 4,           # Size of the plot (output vs. noisy image)
     'exp_weight': 0.99      # No longer used 

@@ -463,14 +463,16 @@ def rgb_to_grayscale(image_array):
     return grayscale_image
 
 from skimage.filters import gaussian
-def fspecial_gaussian_2d(size, sigma):
+
+def fspecial_gaussian_2d(size, sigma):   #this will create a 2d gaussian filter 
     kernel = np.zeros(tuple(size))
     kernel[size[0]//2, size[1]//2] = 1
     kernel = gaussian(kernel, sigma)
-    return kernel/np.sum(kernel)
+    return kernel/np.sum(kernel)  #no changing in the output image brightness
 
 from scipy.signal import convolve2d
-def blur_image(img_np, window_size=5, sigma=1.0):
+
+def blur_image(img_np, window_size=5, sigma=1.0):  #this will apply the gaussian filter(blur) into the image 
     """
     Apply Gaussian blurring to the input image tensor.
     """
