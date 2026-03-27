@@ -52,6 +52,7 @@ SMART_DEBLUR_DIP_PARAMS = {
     'figsize': 4
 }
 
+
 # DIP + TV denoising
 ADMM_DIP_PARAMS = {
     'imsize': -1,
@@ -63,17 +64,22 @@ ADMM_DIP_PARAMS = {
     'reg_noise_std': 1. / 40., 
     'LR': 0.001,
     'OPTIMIZER': 'adam', 
-    'show_every': 200,
+    'show_every': 3,
     'exp_weight': 0,
-    'num_iter': 500,
+    'num_iter': 5,
     'input_depth': 3,
     'figsize': 4
 }
+
+# DnCNN denoiser
+DCNN_PARAMS = {
+    'use_bias': False,
+    'hidden_channels': 64,  
+}
+
 ALL_PARAMS = {
     'DIP': DIP_PARAMS,
     'ADMM-DIP': ADMM_DIP_PARAMS,
+    'DCNN': DCNN_PARAMS,
     'BM3D': BM3D_PARAMS
 }
-
-
-
