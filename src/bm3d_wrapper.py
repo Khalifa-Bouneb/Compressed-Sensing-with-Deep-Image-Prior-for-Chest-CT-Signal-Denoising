@@ -34,7 +34,6 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 from .config import *
 from .models_dip import *
 from .utils import *
-from .hw5_task2 import BSDS300Dataset
 
 dtype = torch.FloatTensor  # This specifies that we are using CPU
 
@@ -60,6 +59,7 @@ def bm3d_single(img_pil, img_np, img_noisy_np, ind, verbose=False):
     dssim, _ = ssim(sobel_gt, sobel_out, win_size=7, full=True, data_range = 1.0, channel_axis=2)
     
     print(f"PSNR_noisy: {psrn_noisy},  PSRN_gt: {psrn_gt}")
+    print(f"SSIM_gt: {ssim_gt},  SSIM_noisy: {ssim_noisy},  DSSIM: {dssim}")
     
     metrics = {
         "PSNR_noisy": psrn_noisy, 
@@ -73,6 +73,6 @@ def bm3d_single(img_pil, img_np, img_noisy_np, ind, verbose=False):
     # Save plot of bm3d output vs. noisy image
     if  BM3D_PARAMS['PLOT']:
         plot_image_grid([np.clip(bm3d_image_out, 0, 1), 
-                        img_noisy_np], factor=13, nrow=1, view = verbose, index=f"image={ind}", prefix="BM3D", tag=f"noise={sigma}")
+                        img_noisy_np, img_np], factor=13, nrow=1, view = verbose, index=f"image={ind}", prefix="BM3D", tag=f"noise={sigma}")
     
     return metrics, bm3d_image_out

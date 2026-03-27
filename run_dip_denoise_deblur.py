@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset
 from glob import glob
 import os
 import skimage.io
@@ -42,8 +42,8 @@ methods_deblur = ["task3", "smart_dip_deblur", "dip", "admm_dip"]
                 
 ##############
 class BSDS300Dataset(Dataset):
-    def __init__(self, root='./Dataset/BSDS300/BSDS300', patch_size=32, split=None, use_patches=True):
-        files = self._resolve_image_files(root, split)
+    def __init__(self, root='./Dataset/BSDS300/BSDS300', patch_size=32, use_patches=True):
+        files = self._resolve_image_files(root)
         
         self.use_patches = use_patches
         self.images = self.load_images(files)
@@ -51,7 +51,7 @@ class BSDS300Dataset(Dataset):
         self.mean = torch.mean(self.patches)
         self.std = torch.std(self.patches)
 
-    def _resolve_image_files(self, root, split):
+    def _resolve_image_files(self, root, split=None):
         image_root = os.path.join(root, 'images')
         candidates = []
 
@@ -104,7 +104,7 @@ class BSDS300Dataset(Dataset):
 class BlurredBSDS300Dataset(BSDS300Dataset):
     def __init__(self, root='./Dataset/BSDS300/BSDS300', patch_size=32, split=None, use_patches=True,
                  kernel_size=7, sigma=2, return_kernel=True):
-        super(BlurredBSDS300Dataset, self).__init__(root=root, patch_size=patch_size, split=split, use_patches=use_patches)
+        super(BlurredBSDS300Dataset, self).__init__(root=root, patch_size=patch_size, use_patches=use_patches)
 
         # trim images to even size
         self.images = self.images[..., :-1, :-1]

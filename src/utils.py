@@ -159,7 +159,7 @@ def crop_image(img, d=32):
 def get_image_grid(images_np, nrow=8):
     '''Creates a grid from a list of images by concatenating them.'''
     images_torch = [torch.from_numpy(x) for x in images_np]
-    torch_grid = torchvision.utils.make_grid(images_torch, nrow)
+    torch_grid = torchvision.utils.make_grid(images_torch, nrow=nrow, padding=0)
     
     return torch_grid.numpy()
 
@@ -179,21 +179,27 @@ def plot_image_grid(images_np, nrow =8, factor=1, interpolation='lanczos', view 
 
     grid = get_image_grid(images_np, nrow)
     
-    fig = plt.figure()
-    
-    if images_np[0].shape[0] == 1:
-        plt.imshow(grid[0], cmap='gray', interpolation=interpolation)
-    else:
-        plt.imshow(grid.transpose(1, 2, 0), interpolation=interpolation)
-        
     os.makedirs(f"./results/{task}/{prefix}/", exist_ok=True)
-    plt.savefig(f"./results/{task}/{prefix}/image_grid_img_{tag}_{index}_{suffix}_{tag1}.png")
+    output_path = f"./results/{task}/{prefix}/image_grid_img_{tag}_{index}_{suffix}_{tag1}.png"
+
+    if images_np[0].shape[0] == 1:
+        grid_to_save = np.clip(grid[0], 0, 1)
+        Image.fromarray((grid_to_save * 255).astype(np.uint8), mode='L').save(output_path)
+    else:
+        grid_to_save = np.clip(grid.transpose(1, 2, 0), 0, 1)
+        Image.fromarray((grid_to_save * 255).astype(np.uint8)).save(output_path)
     
     if view:
+        plt.figure(figsize=(factor * len(images_np), factor))
+        if images_np[0].shape[0] == 1:
+            plt.imshow(grid[0], cmap='gray', interpolation=interpolation)
+        else:
+            plt.imshow(grid.transpose(1, 2, 0), interpolation=interpolation)
+        plt.axis('off')
         plt.show()
-    plt.close(fig)
 
     return grid
+
 
 def fill_noise(x, noise_type):
     """Fills tensor `x` with noise of type `noise_type`."""
