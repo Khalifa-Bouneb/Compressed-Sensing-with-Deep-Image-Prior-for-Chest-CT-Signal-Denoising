@@ -42,14 +42,35 @@ methods_deblur = ["task3", "smart_dip_deblur", "dip", "admm_dip"]
                 
 ##############
 class BSDS300Dataset(Dataset):
-    def __init__(self, root='./Dataset/BSDS300/BSDS300', patch_size=32, split='train', use_patches=True):
-        files = sorted(glob(os.path.join(root, 'images', split, '*')))
+    def __init__(self, root='./Dataset/BSDS300/BSDS300', patch_size=32, split=None, use_patches=True):
+        files = self._resolve_image_files(root, split)
         
         self.use_patches = use_patches
         self.images = self.load_images(files)
         self.patches = self.patchify(self.images, patch_size)
         self.mean = torch.mean(self.patches)
         self.std = torch.std(self.patches)
+
+    def _resolve_image_files(self, root, split):
+        image_root = os.path.join(root, 'images')
+        candidates = []
+
+        if split is not None:
+            candidates.append(os.path.join(image_root, split, '*'))
+
+        candidates.append(os.path.join(image_root, '*'))
+
+        files = []
+        for pattern in candidates:
+            files = sorted(fname for fname in glob(pattern) if os.path.isfile(fname))
+            if files:
+                return files
+
+        searched = ", ".join(candidates)
+        raise FileNotFoundError(
+            f"No image files were found for BSDS300Dataset. "
+            f"Searched: {searched}. Check the root path: {root}"
+        )
 
     def load_images(self, files):
         out = []
@@ -81,9 +102,9 @@ class BSDS300Dataset(Dataset):
             return self.images[idx]
         
 class BlurredBSDS300Dataset(BSDS300Dataset):
-    def __init__(self, root='./Dataset/BSDS300/BSDS300', patch_size=32, split='train', use_patches=True,
+    def __init__(self, root='./Dataset/BSDS300/BSDS300', patch_size=32, split=None, use_patches=True,
                  kernel_size=7, sigma=2, return_kernel=True):
-        super(BlurredBSDS300Dataset, self).__init__(root, patch_size, split)
+        super(BlurredBSDS300Dataset, self).__init__(root=root, patch_size=patch_size, split=split, use_patches=use_patches)
 
         # trim images to even size
         self.images = self.images[..., :-1, :-1]
