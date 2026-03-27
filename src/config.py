@@ -71,6 +71,25 @@ ADMM_DIP_PARAMS = {
     'figsize': 4
 }
 
+ADMM_DIPWTV_PARAMS = {
+    'imsize': -1,
+    'PLOT': True,
+    'sigma': 0.1,
+    'INPUT': 'noise',
+    'pad': 'reflection',
+    'OPT_OVER': 'net',
+    'reg_noise_std': 1. / 20.,
+    'LR': 0.001,
+    'OPTIMIZER': 'adam',
+    'show_every': 50,
+    'exp_weight': 0,
+    'num_iter': 100,
+    'input_depth': 3,
+    'figsize': 4,
+    'beta_t': 10,
+    'inner_iterations': 50
+}
+
 # DnCNN denoiser
 DCNN_PARAMS = {
     'use_bias': False,
@@ -80,6 +99,7 @@ DCNN_PARAMS = {
 ALL_PARAMS = {
     'DIP': DIP_PARAMS,
     'ADMM-DIP': ADMM_DIP_PARAMS,
+    'ADMM-DIPWTV': ADMM_DIPWTV_PARAMS,
     'DCNN': DCNN_PARAMS,
     'BM3D': BM3D_PARAMS
 }

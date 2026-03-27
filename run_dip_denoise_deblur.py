@@ -25,6 +25,7 @@ from src.models_dip import *
 from src.utils import *
 from src.denoise_deblur_dip import *
 from src.denoise_dip_tv import *
+from src.denoise_dip_tvw import *
 from src.baselines import bm3d_denoise
 from PIL import Image
 import torchvision.transforms.functional as TF
@@ -36,7 +37,7 @@ from src.hw5_task2 import run_hw5
 from src.bm3d_wrapper import bm3d_single
 from src.hw5_task3 import *
 
-methods_denoise = ["DCNN", "BM3D", "DIP", "ADMM-DIP"]
+methods_denoise = ["DCNN", "BM3D", "DIP", "ADMM-DIP", "ADMM-DIPWTV"]
 methods_hw_deblur = ["weiner", "deblur_denoise", "denoise"]
 methods_deblur = ["task3", "smart_dip_deblur", "dip", "admm_dip"]
                 
@@ -191,6 +192,10 @@ def run_method(dataset, dataset_name="BSDS300", task="denoise", method= "DIP", f
                                 pickle.dump(output, f)
                         elif method == "ADMM-DIP":
                             metrics, output = admm_dip_single(img_pil, img_np, img_noisy_np, i+1, verbose=verbose)
+                            with open(fsavepath + "/denoise/" + method + f"/model_image={i+1}.pkl", "wb") as f:
+                                pickle.dump(output, f)
+                        elif method == "ADMM-DIPWTV":
+                            metrics, output = admm_dip_wtv_single(img_pil, img_np, img_noisy_np, i+1, verbose=verbose)
                             with open(fsavepath + "/denoise/" + method + f"/model_image={i+1}.pkl", "wb") as f:
                                 pickle.dump(output, f)
                         else :
