@@ -44,13 +44,6 @@ Desktop.ini
 .DS_Store
 
 # ========================
-# Dataset (large files - don't track in Git)
-# Keep only a few sample images, not the full dataset
-# ========================
-Dataset/BSDS300/
-MNIST/
-
-# ========================
 # Results (generated outputs)
 # Keep CSVs and key plots, ignore large generated images
 # ========================
