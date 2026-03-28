@@ -3,7 +3,7 @@ from .texture_nets import get_texture_nets
 from .resnet import ResNet
 from .unet import UNet
 from .simple_cnn import SimpleCNN
-from .DCGAN import dcgan
+#from .DCGAN import dcgan
 
 import torch.nn as nn
 
