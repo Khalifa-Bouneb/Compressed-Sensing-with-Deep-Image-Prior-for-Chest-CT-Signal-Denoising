@@ -41,9 +41,14 @@ pad = DIP_PARAMS['pad']
 OPT_OVER = DIP_PARAMS['OPT_OVER']
 reg_noise_std = DIP_PARAMS['reg_noise_std']
 LR = DIP_PARAMS['LR']
+
 OPTIMIZER= DIP_PARAMS['OPTIMIZER']
 show_every = DIP_PARAMS['show_every']
 exp_weight= DIP_PARAMS['exp_weight']
+early_stopping = DIP_PARAMS.get('early_stopping', False)
+early_stopping_patience = DIP_PARAMS.get('early_stopping_patience', 0)
+early_stopping_min_delta = DIP_PARAMS.get('early_stopping_min_delta', 0.0)
+early_stopping_metric = DIP_PARAMS.get('early_stopping_metric', 'PSNR_gt')
 
 num_iter = DIP_PARAMS['num_iter']
 input_depth = DIP_PARAMS['input_depth']
@@ -52,10 +57,10 @@ figsize = DIP_PARAMS['figsize']
 
 def printnn():
     net = get_net(input_depth, 'skip', pad,
-                skip_n33d=128, 
-                skip_n33u=128, 
-                skip_n11=4, 
-                num_scales=5,
+                skip_n33d=64, 
+                skip_n33u=64, 
+                skip_n11=3, 
+                num_scales=3,
                 n_channels=3,
                 upsample_mode='bilinear').to(device)
     return net
@@ -110,7 +115,7 @@ def dip_single(img_clean_pil, img_clean_np, y, ind, verbose=False, deblur=False)
     # net_input = torch.randn(1, input_depth, 1, 1).to(device).detach()     
 
     net_input = get_noise(input_depth, 'noise', (img_clean_pil.size[1], img_clean_pil.size[0])).to(device).detach()  # 1 x input_depth x H x W
-
+   
     # Compute number of parameters
     if verbose:
         s  = sum([np.prod(list(p.size())) for p in net.parameters()])
@@ -127,11 +132,16 @@ def dip_single(img_clean_pil, img_clean_np, y, ind, verbose=False, deblur=False)
     last_net = None
     psrn_noisy_last = 0
     metrics = []
-
+    best_score = -float('inf')
+    best_iteration = -1
+    best_state_dict = None
+    should_stop = False
     i = 0
     def closure():
         
         nonlocal i, Gz, psrn_noisy_last, last_net, net_input, metrics
+        nonlocal best_score, best_iteration, best_state_dict, should_stop
+        
         
         # Add regularization noise for generalization
         if reg_noise_std > 0:
@@ -167,8 +177,24 @@ def dip_single(img_clean_pil, img_clean_np, y, ind, verbose=False, deblur=False)
             "loss": total_loss.item()  # Include the loss here
         })
         
+        current_score = metrics[-1].get(early_stopping_metric)
+        if current_score is None:
+            raise ValueError(f"Unsupported early stopping metric: {early_stopping_metric}")
+
+        if current_score > best_score + early_stopping_min_delta:
+            best_score = current_score
+            best_iteration = i
+            best_state_dict = {
+                name: tensor.detach().cpu().clone()
+                for name, tensor in net.state_dict().items()
+            }
+        elif early_stopping and (i - best_iteration) >= early_stopping_patience:
+            should_stop = True
+        
         sigma = DIP_PARAMS['sigma']
-        print ('Iteration %05d    Loss %f   PSNR_noisy: %f   PSRN_gt: %f' % (i, total_loss.item(), psrn_noisy, psrn_gt), '\r', end='')
+        print(
+            f"Iteration {i:05d}  Loss {total_loss.item():.6f}  PSNR_noisy: {psrn_noisy:.2f}  PSNR_gt: {psrn_gt:.2f}  SSIM_gt: {ssim_gt:.4f}  DSSIM: {dssim:.4f}",
+            end='\r')
         if  PLOT and ((i % show_every == 0) or (i == num_iter-1)):
             out_np = torch_to_np(G)
             if deblur:
@@ -177,7 +203,7 @@ def dip_single(img_clean_pil, img_clean_np, y, ind, verbose=False, deblur=False)
             else:
                 task = "denoise"
             plot_image_grid([np.clip(out_np, 0, 1), 
-                            y], factor=figsize, nrow=1, prefix="DIP", tag=f"sigma={sigma}", task=task, index=i, view = verbose, tag1=f"image={ind}")
+                            y, img_clean_np], factor=figsize, nrow=1, prefix="DIP", tag=f"sigma={sigma}", task=task, index=i, view = verbose, tag1=f"image={ind}")
             
         # Backtracking
         if i % show_every:
@@ -196,19 +222,25 @@ def dip_single(img_clean_pil, img_clean_np, y, ind, verbose=False, deblur=False)
 
         return total_loss
 
-    early_stopping_patience = 20
-    early_stopping_counter = 0
-    min_delta = 0.001
-    best_loss = float('inf')
     
     p = get_params(OPT_OVER, net, net_input)
+    if OPTIMIZER.lower() != 'adam':
+        raise NotImplementedError("Early stopping is implemented for the Adam optimizer in dip_single.")
+
     optimizer = torch.optim.Adam(p, lr=LR)
-    dip_optimize(OPTIMIZER, p, closure, LR, num_iter)
-    
-    for j in range(num_iter):
+
+    print('Starting optimization with ADAM')
+    for _ in range(num_iter):
         optimizer.zero_grad()
         closure()
         optimizer.step()
+
+        if should_stop:
+            print(f"\nEarly stopping at iteration {i - 1}; restoring best checkpoint from iteration {best_iteration}.")
+            break
+
+    if best_state_dict is not None:
+        net.load_state_dict(best_state_dict)
     
     out_dump = [net, net_input]
-    return metrics, out_dump, net
+    return metrics, out_dump

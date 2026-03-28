@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset
 from glob import glob
 import os
 import skimage.io
@@ -25,6 +25,7 @@ from src.models_dip import *
 from src.utils import *
 from src.denoise_deblur_dip import *
 from src.denoise_dip_tv import *
+from src.denoise_dip_tvw import *
 from src.baselines import bm3d_denoise
 from PIL import Image
 import torchvision.transforms.functional as TF
@@ -36,20 +37,41 @@ from src.hw5_task2 import run_hw5
 from src.bm3d_wrapper import bm3d_single
 from src.hw5_task3 import *
 
-methods_denoise = ["DCNN", "BM3D", "DIP", "ADMM-DIP"]
+methods_denoise = ["DCNN", "BM3D", "DIP", "ADMM-DIP", "ADMM-DIPWTV"]
 methods_hw_deblur = ["weiner", "deblur_denoise", "denoise"]
 methods_deblur = ["task3", "smart_dip_deblur", "dip", "admm_dip"]
                 
 ##############
 class BSDS300Dataset(Dataset):
-    def __init__(self, root='./Dataset/BSDS300/BSDS300', patch_size=32, split='train', use_patches=True):
-        files = sorted(glob(os.path.join(root, 'images', split, '*')))
+    def __init__(self, root='./Dataset/BSDS300/BSDS300', patch_size=32, use_patches=True):
+        files = self._resolve_image_files(root)
         
         self.use_patches = use_patches
         self.images = self.load_images(files)
         self.patches = self.patchify(self.images, patch_size)
         self.mean = torch.mean(self.patches)
         self.std = torch.std(self.patches)
+
+    def _resolve_image_files(self, root, split=None):
+        image_root = os.path.join(root, 'images')
+        candidates = []
+
+        if split is not None:
+            candidates.append(os.path.join(image_root, split, '*'))
+
+        candidates.append(os.path.join(image_root, '*'))
+
+        files = []
+        for pattern in candidates:
+            files = sorted(fname for fname in glob(pattern) if os.path.isfile(fname))
+            if files:
+                return files
+
+        searched = ", ".join(candidates)
+        raise FileNotFoundError(
+            f"No image files were found for BSDS300Dataset. "
+            f"Searched: {searched}. Check the root path: {root}"
+        )
 
     def load_images(self, files):
         out = []
@@ -81,9 +103,9 @@ class BSDS300Dataset(Dataset):
             return self.images[idx]
         
 class BlurredBSDS300Dataset(BSDS300Dataset):
-    def __init__(self, root='./Dataset/BSDS300/BSDS300', patch_size=32, split='train', use_patches=True,
+    def __init__(self, root='./Dataset/BSDS300/BSDS300', patch_size=32, split=None, use_patches=True,
                  kernel_size=7, sigma=2, return_kernel=True):
-        super(BlurredBSDS300Dataset, self).__init__(root, patch_size, split)
+        super(BlurredBSDS300Dataset, self).__init__(root=root, patch_size=patch_size, use_patches=use_patches)
 
         # trim images to even size
         self.images = self.images[..., :-1, :-1]
@@ -170,6 +192,10 @@ def run_method(dataset, dataset_name="BSDS300", task="denoise", method= "DIP", f
                                 pickle.dump(output, f)
                         elif method == "ADMM-DIP":
                             metrics, output = admm_dip_single(img_pil, img_np, img_noisy_np, i+1, verbose=verbose)
+                            with open(fsavepath + "/denoise/" + method + f"/model_image={i+1}.pkl", "wb") as f:
+                                pickle.dump(output, f)
+                        elif method == "ADMM-DIPWTV":
+                            metrics, output = admm_dip_wtv_single(img_pil, img_np, img_noisy_np, i+1, verbose=verbose)
                             with open(fsavepath + "/denoise/" + method + f"/model_image={i+1}.pkl", "wb") as f:
                                 pickle.dump(output, f)
                         else :
