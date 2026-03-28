@@ -71,7 +71,8 @@ def admm_dip_single(img_pil, img_clean_np, y, ind, verbose=False):
     # net = net.type(dtype)
     net = net.to(device)
 
-    # net_input = get_noise(input_depth, INPUT, (img_pil.size[1], img_pil.size[0])).type(dtype).detach()
+    # net_input = get_noise(input_depth, INPUT, (img_pil.si
+    # ze[1], img_pil.size[0])).type(dtype).detach()
     net_input = get_noise(input_depth, INPUT, (img_pil.size[1], img_pil.size[0])).to(device).detach()
     # Compute number of parameters
     if verbose:
@@ -90,7 +91,7 @@ def admm_dip_single(img_pil, img_clean_np, y, ind, verbose=False):
 
     # Dh_DFT = torch.from_numpy(psf2otf(Dh_psf, [h,w]))
     # Dv_DFT = torch.from_numpy(psf2otf(Dv_psf, [h,w]))
-    Dh_DFT = torch.from_numpy(psf2otf(Dh_psf, [h,w])).to(device)
+    Dh_DFT = torch.from_numpy(psf2otf(Dh_psf, [h,w])).to(device)  
     Dv_DFT = torch.from_numpy(psf2otf(Dv_psf, [h,w])).to(device)
 
 
@@ -104,9 +105,9 @@ def admm_dip_single(img_pil, img_clean_np, y, ind, verbose=False):
     mu_t_v = torch.zeros_like(img_noisy_torch, device=device)
 
     # Hyperparameters to tune
-    beta_t = 25
+    beta_t = 25 / 2
     weight = 0.01
-    inner_iterations = 20 
+    inner_iterations = 10 # 20
     
     metrics = []
     loss_values = []
@@ -117,21 +118,26 @@ def admm_dip_single(img_pil, img_clean_np, y, ind, verbose=False):
         
         # Regularization
         if inner_iterations>1:
-            optimizer = torch.optim.Adam(net.parameters(), lr=LR)
-
+            # optimizer = torch.optim.Adam(net.parameters(), lr=LR)
+            optimizer = torch.optim.LBFGS(net.parameters(), lr=LR, tolerance_grad=-1, tolerance_change=-1)
         # Update theta
         for j in range(inner_iterations):
-            optimizer.zero_grad()
-        
-            #First problem
-            out = net(net_input)
-            [Dh_out, Dv_out] = D(out, Dh_DFT, Dv_DFT)
+            def closure():
+                optimizer.zero_grad()
 
-            total_loss = norm2_loss(out-img_noisy_torch)
-            total_loss += (beta_t/2)*norm2_loss(Dh_out-(t_h-mu_t_h).detach()) + (beta_t/2)*norm2_loss(Dv_out-(t_v-mu_t_v).detach())
-            
-            total_loss.backward()
-            optimizer.step()
+                # First problem
+                out = net(net_input)
+                [Dh_out, Dv_out] = D(out, Dh_DFT, Dv_DFT)
+
+                total_loss = norm2_loss(out - img_noisy_torch)
+                total_loss += (beta_t / 2) * norm2_loss(Dh_out - (t_h - mu_t_h).detach())
+                total_loss += (beta_t / 2) * norm2_loss(Dv_out - (t_v - mu_t_v).detach())
+
+                total_loss.backward()
+                return total_loss
+
+            total_loss = optimizer.step(closure)
+        
         
         running_loss = total_loss.item()
         loss_values.append(running_loss)

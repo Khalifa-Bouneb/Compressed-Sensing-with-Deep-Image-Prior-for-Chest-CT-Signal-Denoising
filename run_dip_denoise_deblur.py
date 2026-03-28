@@ -103,7 +103,7 @@ class BSDS300Dataset(Dataset):
             return self.images[idx]
         
 class BlurredBSDS300Dataset(BSDS300Dataset):
-    def __init__(self, root='./Dataset/BSDS300/BSDS300', patch_size=32, split=None, use_patches=True,
+    def __init__(self, root='./Dataset/BSDS300/BSDS300', patch_size=32, use_patches=True,
                  kernel_size=7, sigma=2, return_kernel=True):
         super(BlurredBSDS300Dataset, self).__init__(root=root, patch_size=patch_size, use_patches=use_patches)
 
@@ -158,7 +158,7 @@ def run_method(dataset, dataset_name="BSDS300", task="denoise", method= "DIP", f
         print(f"Running {method} on {dataset_name} for {task}")
             
         if dataset_name == "BSDS300":   
-            subset = get_random_subset(dataset, subset_size=1) ####CHANGE THIS TO 1 FOR FINAL RUN
+            subset = get_random_subset(dataset, subset_size=1) ####CHANGE THIS 
             
             processed_pils, processed_tensors = process_subset(subset)     
             n = len(processed_pils)
@@ -181,7 +181,8 @@ def run_method(dataset, dataset_name="BSDS300", task="denoise", method= "DIP", f
                         img_np = processed_tensors[i].numpy()
                         
                         sigma = ALL_PARAMS[method]["sigma"]
-                        img_noisy_np = add_noise(img_tensor, sigma).numpy()
+                        # img_noisy_np = add_noise(img_tensor, sigma).numpy()
+                        img_noisy_np = add_speckle(img_tensor, sigma).numpy()
                         metrics_all = []
                         
                         if method == "BM3D":
@@ -208,10 +209,13 @@ def run_method(dataset, dataset_name="BSDS300", task="denoise", method= "DIP", f
                         with open(fsavepath + "/denoise/" + method + f"/metrics_image={i+1}.pkl", "wb") as f:
                             pickle.dump(metrics, f)
             elif task == "deblur":
-                dataset = BlurredBSDS300Dataset(split='test', kernel_size=7)
+                dataset = BlurredBSDS300Dataset(kernel_size=7)
                 subset = dataset
+                if not os.path.exists(fsavepath + "/deblur/" + method):
+                        os.makedirs(fsavepath + "/deblur/" + method) 
                 idx=0
                 for img, gt, kernel in subset:
+                    # print(gt.size)
                     gt_pil = TF.to_pil_image(gt.squeeze(0))
                     gt_pil.save(fsavepath + "/deblur/" + f"gt{idx}.png")
                     img = img + SMART_DEBLUR_DIP_PARAMS["sigma"]*torch.randn_like(img)

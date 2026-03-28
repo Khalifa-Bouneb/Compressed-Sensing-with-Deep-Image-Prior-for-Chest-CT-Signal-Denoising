@@ -4,7 +4,7 @@ import numpy as np
 from torch.utils.data import Dataset
 from torchvision.datasets import MNIST
 from torchvision.transforms import Compose, ToTensor, Lambda
-from .models import Unet
+from .models.Unet import Unet
 import skimage.io
 from skimage.metrics import structural_similarity as ssim
 from .utils import *
@@ -106,10 +106,10 @@ def wiener_deconv(x, kernel):
 
 def load_models():
     model_deblur_denoise = Unet().to(device)
-    model_deblur_denoise.load_state_dict(torch.load('pretrained/deblur_denoise.pth', map_location=device))
+    model_deblur_denoise.load_state_dict(torch.load('./pretrained/deblur_denoise.pth', map_location=device))
 
     model_denoise = Unet().to(device)
-    model_denoise.load_state_dict(torch.load('pretrained/denoise.pth', map_location=device))
+    model_denoise.load_state_dict(torch.load('./pretrained/denoise.pth', map_location=device))
 
     return model_deblur_denoise, model_denoise
 
@@ -136,43 +136,53 @@ def evaluate_model(dataset_in, sigma_in=0.01):
         psnrs_denoise = []
         ssim_denoise = []
         idx = 0
-        for image, gt, kernel in dataset:
-            # noisy_image = image + sigma * torch.randn_like(image)
-            noisy_image=image
+        with torch.no_grad():
+            for image, gt, kernel in dataset:
+                image = image.to(device)
+                gt = gt.to(device)
+                kernel = kernel.to(device)
 
-            # Apply Wiener deconvolution
-            wiener_deconvolved = wiener_deconv(noisy_image, kernel)
+                # noisy_image = image + sigma * torch.randn_like(image)
+                noisy_image = image
 
-            # Apply the neural network models
-            #denoised_image = model_denoise(noisy_image)
-            deblurred_denoised_image = model_deblur_denoise(noisy_image)
-            
-            # Hybrid approach
-            wiener_then_denoised_image = model_denoise(wiener_deconvolved)
+                # Apply Wiener deconvolution
+                wiener_deconvolved = wiener_deconv(noisy_image, kernel)
 
-            # Calculate PSNR
-            psnr_wiener = calc_psnr(wiener_deconvolved, gt)
-            psnr_deblur_denoise = calc_psnr(deblurred_denoised_image, gt)
-            psnr_denoise = calc_psnr(wiener_then_denoised_image, gt)
-            
-            # breakpoint()
-            ssim_weiner.append(ssim(wiener_deconvolved.detach().numpy().squeeze(0).transpose(1,2,0), gt.detach().numpy().squeeze(0).transpose(1,2,0), full=True, channel_axis=2)[0])
-            ssim_deblur_denoise.append(ssim(deblurred_denoised_image.detach().numpy().squeeze(0).transpose(1,2,0), gt.detach().numpy().squeeze(0).transpose(1,2,0), full=True, channel_axis=2)[0])
-            ssim_denoise.append(ssim(wiener_then_denoised_image.detach().numpy().squeeze(0).transpose(1,2,0), gt.detach().numpy().squeeze(0).transpose(1,2,0), full=True, channel_axis=2)[0])
+                # Apply the neural network models
+                # denoised_image = model_denoise(noisy_image)
+                deblurred_denoised_image = model_deblur_denoise(noisy_image)
 
-            psnrs_wiener.append(psnr_wiener)
-            psnrs_deblur_denoise.append(psnr_deblur_denoise)
-            psnrs_denoise.append(psnr_denoise)
-            #, deblurred_denoised_image.detach().numpy().squeeze(0), wiener_then_denoised_image.detach().numpy().squeeze(0)
-            plot_image_grid([noisy_image.detach().numpy().squeeze(0), wiener_deconvolved.detach().numpy().squeeze(0)], index = idx, task="deblur", prefix="task3", suffix="weiner_deconv")
-            plot_image_grid([noisy_image.detach().numpy().squeeze(0), deblurred_denoised_image.detach().numpy().squeeze(0)], index = idx, task="deblur", prefix="task3", suffix="deblur_denoise")
-            plot_image_grid([noisy_image.detach().numpy().squeeze(0), wiener_then_denoised_image.detach().numpy().squeeze(0)], index = idx, task="deblur", prefix="task3", suffix="denoise")
+                # Hybrid approach
+                wiener_then_denoised_image = model_denoise(wiener_deconvolved)
 
-            skimage.io.imsave(f'wiener_sigma_{sigma}.png', (img_to_numpy(wiener_deconvolved)*255).astype(np.uint8))
-            skimage.io.imsave(f'deblur_denoise_sigma_{sigma}.png', (img_to_numpy(deblurred_denoised_image)*255).astype(np.uint8))
-            skimage.io.imsave(f'denoise_sigma_{sigma}.png', (img_to_numpy(wiener_then_denoised_image)*255).astype(np.uint8))         
+                # Calculate PSNR
+                psnr_wiener = calc_psnr(wiener_deconvolved, gt)
+                psnr_deblur_denoise = calc_psnr(deblurred_denoised_image, gt)
+                psnr_denoise = calc_psnr(wiener_then_denoised_image, gt)
 
-            idx += 1
+                wiener_np = wiener_deconvolved.detach().cpu().numpy().squeeze(0).transpose(1, 2, 0)
+                deblur_denoise_np = deblurred_denoised_image.detach().cpu().numpy().squeeze(0).transpose(1, 2, 0)
+                denoise_np = wiener_then_denoised_image.detach().cpu().numpy().squeeze(0).transpose(1, 2, 0)
+                gt_np = gt.detach().cpu().numpy().squeeze(0).transpose(1, 2, 0)
+                noisy_np = noisy_image.detach().cpu().numpy().squeeze(0)
+
+                ssim_weiner.append(ssim(wiener_np, gt_np, full=True, channel_axis=2, data_range=1.0)[0])
+                ssim_deblur_denoise.append(ssim(deblur_denoise_np, gt_np, full=True, channel_axis=2, data_range=1.0)[0])
+                ssim_denoise.append(ssim(denoise_np, gt_np, full=True, channel_axis=2, data_range=1.0)[0])
+
+                psnrs_wiener.append(psnr_wiener)
+                psnrs_deblur_denoise.append(psnr_deblur_denoise)
+                psnrs_denoise.append(psnr_denoise)
+
+                plot_image_grid([noisy_np, wiener_deconvolved.detach().cpu().numpy().squeeze(0)], index=idx, task="deblur", prefix="task3", suffix="weiner_deconv")
+                plot_image_grid([noisy_np, deblurred_denoised_image.detach().cpu().numpy().squeeze(0)], index=idx, task="deblur", prefix="task3", suffix="deblur_denoise")
+                plot_image_grid([noisy_np, wiener_then_denoised_image.detach().cpu().numpy().squeeze(0)], index=idx, task="deblur", prefix="task3", suffix="denoise")
+
+                skimage.io.imsave(f'wiener_sigma_{sigma}.png', (img_to_numpy(wiener_deconvolved) * 255).astype(np.uint8))
+                skimage.io.imsave(f'deblur_denoise_sigma_{sigma}.png', (img_to_numpy(deblurred_denoised_image) * 255).astype(np.uint8))
+                skimage.io.imsave(f'denoise_sigma_{sigma}.png', (img_to_numpy(wiener_then_denoised_image) * 255).astype(np.uint8))
+
+                idx += 1
         return [psnrs_wiener, psnrs_deblur_denoise, psnrs_denoise, ssim_weiner, ssim_deblur_denoise, ssim_denoise]
         # print(f'Average PSNR for Wiener deconvolution at sigma {sigma}: {np.mean(psnrs_wiener)}')
         # print(f'Average PSNR for Deblur+Denoise model at sigma {sigma}: {np.mean(psnrs_deblur_denoise)}')
