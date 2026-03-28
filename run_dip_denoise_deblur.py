@@ -189,15 +189,15 @@ def run_method(dataset, dataset_name="BSDS300", task="denoise", method= "DIP", f
                             metrics, output = bm3d_single(img_pil, img_np, img_noisy_np, i+1, verbose=verbose)
                         elif method == "DIP":
                             metrics, output = dip_single(img_pil, img_np, img_noisy_np, i+1, verbose=verbose)
-                            with open(fsavepath + "/denoise/" + method + f"/model_image={i+1}.pkl", "wb") as f:
+                            with open(fsavepath + "/" + method + f"/model_image={i+1}.pkl", "wb") as f:
                                 pickle.dump(output, f)
                         elif method == "ADMM-DIP":
                             metrics, output = admm_dip_single(img_pil, img_np, img_noisy_np, i+1, verbose=verbose)
-                            with open(fsavepath + "/denoise/" + method + f"/model_image={i+1}.pkl", "wb") as f:
+                            with open(fsavepath + "/" + method + f"/model_image={i+1}.pkl", "wb") as f:
                                 pickle.dump(output, f)
                         elif method == "ADMM-DIPWTV":
                             metrics, output = admm_dip_wtv_single(img_pil, img_np, img_noisy_np, i+1, verbose=verbose)
-                            with open(fsavepath + "/denoise/" + method + f"/model_image={i+1}.pkl", "wb") as f:
+                            with open(fsavepath + "/" + method + f"/model_image={i+1}.pkl", "wb") as f:
                                 pickle.dump(output, f)
                         else :
                             assert False
