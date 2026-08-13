@@ -66,6 +66,17 @@ def printnn():
     return net
 
 
+def _to_opencv_image(image):
+    """Convert a DIP image from CHW layout to an OpenCV-compatible layout."""
+    image = np.asarray(image)
+    if image.ndim != 3:
+        raise ValueError(f"Expected a CHW image, got shape {image.shape}")
+
+    if image.shape[0] == 1:
+        return image[0]
+    return image.transpose(1, 2, 0)
+
+
 def dip_single(img_clean_pil, img_clean_np, y, ind, verbose=False, deblur=False):   #y is the observation (np noisy image) of size 3 x 321 x 481 (np)
     
     if (img_clean_np.shape[0]) == 1:
@@ -157,15 +168,23 @@ def dip_single(img_clean_pil, img_clean_np, y, ind, verbose=False, deblur=False)
         # breakpoint()  
         psrn_noisy = peak_signal_noise_ratio(y, G.detach().cpu().numpy()[0], data_range=np.max(y))    #peak_signal_noise_ratio(image_true, image_test)
         psrn_gt    = peak_signal_noise_ratio(img_clean_np, G.detach().cpu().numpy()[0], data_range=np.max(y)) 
-        if y.shape[0] == 1:
-            ssim_gt, _ = structural_similarity(img_clean_np.squeeze(0), G.detach().cpu().numpy()[0].squeeze(0), data_range= 1.0, full=True, channel_axis=0)
-        else:
-            ssim_gt, _ = structural_similarity(img_clean_np.transpose(1,2,0), G.detach().cpu().numpy()[0].transpose(1,2,0), data_range= 1.0, full=True, channel_axis=2)
+        output_np = G.detach().cpu().numpy()[0]
+        clean_cv = _to_opencv_image(img_clean_np)
+        output_cv = _to_opencv_image(output_np)
+        channel_axis = -1 if clean_cv.ndim == 3 else None
+        ssim_gt, _ = structural_similarity(
+            clean_cv, output_cv, data_range=1.0, full=True,
+            channel_axis=channel_axis
+        )
         #ssim_gt_noisy, _ = ssim(y.transpose(1,2,0), G.detach().cpu().numpy()[0].transpose(1,2,0), win_size=7, full=True, channel_axis=2)
         
-        sobel_gt = cv2.Sobel(img_clean_np, cv2.CV_64F, 1,1, ksize=5)
-        sobel_out = cv2.Sobel(G.detach().cpu().numpy()[0], cv2.CV_64F, 1,1, ksize=5)
-        dssim, _ = structural_similarity(sobel_gt, sobel_out, win_size=7, full=True, data_range=1.0, channel_axis=0)
+        # OpenCV accepts HW/HWC images, while DIP tensors use CHW layout.
+        sobel_gt = cv2.Sobel(clean_cv, cv2.CV_64F, 1, 1, ksize=5)
+        sobel_out = cv2.Sobel(output_cv, cv2.CV_64F, 1, 1, ksize=5)
+        dssim, _ = structural_similarity(
+            sobel_gt, sobel_out, win_size=7, full=True, data_range=1.0,
+            channel_axis=channel_axis
+        )
         
         metrics.append({
             "iteration": i, 

@@ -12,6 +12,7 @@ from skimage.metrics import structural_similarity as ssim
 from .config import ADMM_DIPWTV_PARAMS
 from .models_dip import get_net
 from .utils import D, get_noise, norm2_loss, np_to_torch, plot_image_grid, psf2otf, torch_to_np
+from .admm_cuda import cuda_extension_status, periodic_gradient, shrink_and_update_dual
 
 
 torch.manual_seed(1)
@@ -44,6 +45,8 @@ inner_iterations = ADMM_DIPWTV_PARAMS['inner_iterations']
 
 
 def admm_dip_wtv_single(img_pil, img_clean_np, y, ind, verbose=False):
+    if verbose:
+        print(f"ADMM image operators: {cuda_extension_status()}")
     n_channels = 1 if img_clean_np.shape[0] == 1 else 3
 
     net = get_net(
@@ -67,11 +70,6 @@ def admm_dip_wtv_single(img_pil, img_clean_np, y, ind, verbose=False):
     optimizer = torch.optim.Adam(net.parameters(), lr=LR)
 
     h, w = img_clean_np.shape[-2], img_clean_np.shape[-1]
-    dh_psf = np.array([[0, 0, 0], [1, -1, 0], [0, 0, 0]], dtype=np.float32)
-    dv_psf = np.array([[0, 1, 0], [0, -1, 0], [0, 0, 0]], dtype=np.float32)
-
-    dh_dft = torch.from_numpy(psf2otf(dh_psf, [h, w])).to(device)
-    dv_dft = torch.from_numpy(psf2otf(dv_psf, [h, w])).to(device)
 
     img_noisy_torch = np_to_torch(y).to(device=device, dtype=torch.float32)
     t_h = torch.zeros_like(img_noisy_torch)
@@ -89,7 +87,7 @@ def admm_dip_wtv_single(img_pil, img_clean_np, y, ind, verbose=False):
             optimizer.zero_grad()
 
             out = net(net_input)
-            dh_out, dv_out = D(out, dh_dft, dv_dft)
+            dh_out, dv_out = periodic_gradient(out)
 
             total_loss = norm2_loss(out - img_noisy_torch)
             total_loss += (beta_t / 2) * norm2_loss(dh_out - (t_h - mu_t_h).detach())
@@ -98,21 +96,16 @@ def admm_dip_wtv_single(img_pil, img_clean_np, y, ind, verbose=False):
             optimizer.step()
 
         out = net(net_input)
-        dh_out, dv_out = D(out, dh_dft, dv_dft)
+        dh_out, dv_out = periodic_gradient(out)
 
         q_h = dh_out + mu_t_h
         q_v = dv_out + mu_t_v
         q_norm = torch.sqrt(torch.pow(q_h, 2) + torch.pow(q_v, 2))
         weight = torch.pow(torch.norm(out - img_noisy_torch), 2) / (6 * h * w)
         weight = (weight / torch.clamp(q_norm, min=1e-12)).detach().clone()
-        q_norm[q_norm == 0] = weight[q_norm == 0] / beta_t
-        q_norm = torch.clamp(q_norm - weight / beta_t, min=0) / torch.clamp(q_norm, min=1e-12)
-
-        t_h = (q_norm * q_h).detach().clone()
-        t_v = (q_norm * q_v).detach().clone()
-
-        mu_t_h = (mu_t_h + (dh_out - t_h)).detach().clone()
-        mu_t_v = (mu_t_v + (dv_out - t_v)).detach().clone()
+        t_h, t_v, mu_t_h, mu_t_v = shrink_and_update_dual(
+            dh_out, dv_out, mu_t_h, mu_t_v, weight / beta_t
+        )
 
         out_np = out.detach().cpu().numpy()[0]
         psnr_noisy = compare_psnr(y, out_np)
