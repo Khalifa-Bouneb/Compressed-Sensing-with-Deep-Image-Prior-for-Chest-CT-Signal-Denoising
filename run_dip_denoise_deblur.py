@@ -24,7 +24,7 @@ from src.config import *
 from src.models_dip import *
 from src.utils import *
 from src.denoise_deblur_dip import *
-from src.denoise_dip_tv import *
+from src.denoise_dip_tv_eager import *
 from src.denoise_dip_tvw import *
 from src.baselines import bm3d_denoise
 from PIL import Image
@@ -197,7 +197,7 @@ def run_method(dataset, dataset_name="BSDS300", task="denoise", method= "DIP", f
                             with open(fsavepath + "/denoise/" + method + f"/model_image={i+1}.pkl", "wb") as f:
                                 pickle.dump(output, f)
                         elif method == "ADMM-DIP":
-                            metrics, output = admm_dip_single(img_pil, img_np, img_noisy_np, i+1, verbose=verbose)
+                            metrics, output = admm_dip_single_eager(img_pil, img_np, img_noisy_np, i+1, verbose=verbose)
                             with profile_region("OUTPUT_SERIALIZATION_MODEL"):
                                 with open(fsavepath + "/denoise/" + method + f"/model_image={i+1}.pkl", "wb") as f:
                                     pickle.dump(output, f)

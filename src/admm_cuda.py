@@ -33,6 +33,9 @@ def _load_extension():
     source_dir = Path(__file__).resolve().parent / "cuda_ops"
     try:
         with profile_region("CUDA_EXTENSION_LOAD_OR_COMPILE"):
+            build_dir = source_dir / "build"
+            build_dir.mkdir(exist_ok=True)
+            
             _EXTENSION = load(
                 name="dip_admm_cuda",
                 sources=[
@@ -42,6 +45,7 @@ def _load_extension():
                 extra_cflags=["-O3"],
                 extra_cuda_cflags=["-O3", "--use_fast_math"],
                 verbose=os.environ.get("DIP_CUDA_EXT_VERBOSE") == "1",
+                build_directory=str(build_dir),
             )
     except Exception as error:  # Fall back without breaking CPU/notebook runs.
         _EXTENSION_ERROR = error
