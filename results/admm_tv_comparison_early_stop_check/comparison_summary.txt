@@ -1,0 +1,10 @@
+ADMM-DIP-TV EAGER VS CUSTOM COMPARISON
+Device: cpu
+Custom backend: fallback (CUDA device unavailable)
+Input: Dataset/BSDS300/BSDS300/images/101085.jpg (3, 64, 64)
+Eager FFT: 0.113427 s
+Custom: 0.105012 s
+Speedup (eager/custom): 1.0801x
+Eager PSNR/SSIM: 15.6245 dB / 0.150101
+Custom PSNR/SSIM: 16.7747 dB / 0.167012
+Output MSE/MAE/max: 7.918992e-03 / 6.339934e-02 / 3.103778e-01

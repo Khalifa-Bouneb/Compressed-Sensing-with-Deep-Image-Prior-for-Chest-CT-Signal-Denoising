@@ -58,6 +58,14 @@ LR = ADMM_DIP_PARAMS['LR']
 OPTIMIZER= ADMM_DIP_PARAMS['OPTIMIZER']
 show_every = ADMM_DIP_PARAMS['show_every']
 exp_weight= ADMM_DIP_PARAMS['exp_weight']
+early_stopping = ADMM_DIP_PARAMS.get('early_stopping', False)
+early_stopping_patience = ADMM_DIP_PARAMS.get('early_stopping_patience', 0)
+early_stopping_min_delta = ADMM_DIP_PARAMS.get(
+    'early_stopping_min_delta', 0.0
+)
+early_stopping_metric = ADMM_DIP_PARAMS.get(
+    'early_stopping_metric', 'PSNR_gt'
+)
 
 num_iter = ADMM_DIP_PARAMS['num_iter']
 input_depth = ADMM_DIP_PARAMS['input_depth']
@@ -122,9 +130,10 @@ def admm_dip_single(img_pil, img_clean_np, y, ind, verbose=False):
     outer_iterations = profile_iteration_setting(
         "DIP_PROFILE_OUTER_ITERATIONS", num_iter
     )
-    inner_iterations = profile_iteration_setting(
-        "DIP_PROFILE_INNER_ITERATIONS", 10
-    )
+    # inner_iterations = profile_iteration_setting(
+    #     "DIP_PROFILE_INNER_ITERATIONS", 10
+    # )
+    inner_iterations = 1
     lbfgs_max_iter = profile_iteration_setting(
         "DIP_PROFILE_LBFGS_MAX_ITER", 20
     )
@@ -133,6 +142,10 @@ def admm_dip_single(img_pil, img_clean_np, y, ind, verbose=False):
     loss_values = []
     psnr_values = []
     running_loss=0
+    best_score = -float('inf')
+    best_iteration = -1
+    best_state_dict = None
+    should_stop = False
 
     for i in range(outer_iterations):
         increment_counter("outer_iterations")
@@ -226,6 +239,26 @@ def admm_dip_single(img_pil, img_clean_np, y, ind, verbose=False):
                     "loss": total_loss.item()
                 })
 
+                current_score = metrics[-1].get(early_stopping_metric)
+                if current_score is None:
+                    raise ValueError(
+                        "Unsupported early stopping metric: "
+                        f"{early_stopping_metric}"
+                    )
+
+                if current_score > best_score + early_stopping_min_delta:
+                    best_score = current_score
+                    best_iteration = i
+                    best_state_dict = {
+                        name: tensor.detach().cpu().clone()
+                        for name, tensor in net.state_dict().items()
+                    }
+                elif (
+                    early_stopping
+                    and (i - best_iteration) >= early_stopping_patience
+                ):
+                    should_stop = True
+
             print ('Iteration %05d    Loss %f   PSNR_noisy: %f   PSRN_gt: %f' % (i, total_loss.item(), psrn_noisy, psrn_gt), '\r', end='')
 
             if PLOT and ((i % show_every == 0) or (i == outer_iterations - 1)):
@@ -240,6 +273,19 @@ def admm_dip_single(img_pil, img_clean_np, y, ind, verbose=False):
                     )
 
             out_dump = [net, net_input]
+
+            if should_stop:
+                print(
+                    f"\nEarly stopping at iteration {i}; restoring best "
+                    f"checkpoint from iteration {best_iteration} with "
+                    f"{early_stopping_metric}={best_score:.6f}."
+                )
+                break
+
+    if best_state_dict is not None:
+        net.load_state_dict(best_state_dict)
+
+    out_dump = [net, net_input]
     return metrics, out_dump      
     
             

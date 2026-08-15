@@ -62,13 +62,17 @@ ADMM_DIP_PARAMS = {
     'pad': 'reflection',
     'OPT_OVER': 'net',
     'reg_noise_std': 1. / 40., 
-    'LR': 0.001,
+    'LR': 0.01,
     'OPTIMIZER': 'adam', 
     'show_every': 50,
     'exp_weight': 0,
-    'num_iter': 150,
-    'input_depth': 3,
-    'figsize': 4
+    'num_iter': 2000,
+    'input_depth': 32,
+    'figsize': 4,
+    'early_stopping': True,
+    'early_stopping_patience': 100,
+    'early_stopping_min_delta': 0.0001,
+    'early_stopping_metric': 'PSNR_gt'
 }
 
 ADMM_DIPWTV_PARAMS = {
