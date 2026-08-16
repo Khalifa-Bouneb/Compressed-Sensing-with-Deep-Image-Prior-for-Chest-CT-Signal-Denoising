@@ -75,6 +75,7 @@ ADMM_DIP_PARAMS = {
     'early_stopping_metric': 'PSNR_gt'
 }
 
+# ADMM-DIP + weighted-TV denoising
 ADMM_DIPWTV_PARAMS = {
     'imsize': -1,
     'PLOT': True,
@@ -85,15 +86,15 @@ ADMM_DIPWTV_PARAMS = {
     'reg_noise_std': 1. / 20.,
     'LR': 0.001,
     'OPTIMIZER': 'adam',
-    'show_every': 50,
-    'exp_weight': 0,
-    'num_iter': 100,
+    'show_every': 20,
+
+    'num_iter': 1000,
     'input_depth': 3,
     'figsize': 4,
-    'beta_t': 10,
-    'inner_iterations': 50
-}
 
+    'beta_t': 12.5,
+    'inner_iterations': 1,
+}
 # DnCNN denoiser
 DCNN_PARAMS = {
     'use_bias': False,
@@ -104,6 +105,8 @@ ALL_PARAMS = {
     'DIP': DIP_PARAMS,
     'ADMM-DIP': ADMM_DIP_PARAMS,
     'ADMM-DIPWTV': ADMM_DIPWTV_PARAMS,
+    'ADMM-DIP-CUDA': ADMM_DIP_PARAMS,
+    'ADMM-DIPWTV-CUDA': ADMM_DIPWTV_PARAMS,
     'DCNN': DCNN_PARAMS,
     'BM3D': BM3D_PARAMS
 }

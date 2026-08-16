@@ -1,22 +1,31 @@
-#include <ATen/cuda/CUDAContext.h>
+#include <c10/cuda/CUDAStream.h>
 #include <c10/cuda/CUDAGuard.h>
 #include <c10/cuda/CUDAException.h>
 #include <torch/extension.h>
+#include <cuda.h>
+#include <cuda_runtime.h>
 
 #include <vector>
 
-namespace {
+namespace {   //private namespace
 
 constexpr int kThreads = 256;
 
-template <typename scalar_t>
+template <typename scalar_t>   //the same kernal can be applied to different data types (float, double, half)
+
 __global__ void gradient_kernel(
-    const scalar_t* __restrict__ input,
-    scalar_t* __restrict__ grad_h,
-    scalar_t* __restrict__ grad_v,
+
+    const scalar_t* __restrict__ input,    //input is  a pointer to a scalar_t type
+    scalar_t* __restrict__ grad_h,         //grad_h is a pointer to a scalar_t type
+    scalar_t* __restrict__ grad_v,      //grad_v is a pointer to a scalar_t type
     int64_t elements,
     int64_t height,
-    int64_t width) {
+    int64_t width
+
+  ) 
+ 
+  {
+
   const int64_t index = blockIdx.x * blockDim.x + threadIdx.x;
   if (index >= elements) return;
 
@@ -85,21 +94,28 @@ __global__ void shrink_dual_kernel(
 
 }  // namespace
 
+
+
+
+
 std::vector<torch::Tensor> admm_gradient_cuda(torch::Tensor input) {
-  const c10::cuda::CUDAGuard device_guard(input.device());
+  
+  const c10::cuda::CUDAGuard device_guard(input.device());   //select the correct GPU device for the operation
+  
   auto grad_h = torch::empty_like(input);
   auto grad_v = torch::empty_like(input);
+  
   const int64_t elements = input.numel();
   const int blocks = static_cast<int>((elements + kThreads - 1) / kThreads);
 
   AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.scalar_type(), "admm_gradient_cuda", [&] {
-    gradient_kernel<scalar_t><<<blocks, kThreads, 0,
-        at::cuda::getCurrentCUDAStream()>>>(
-        input.data_ptr<scalar_t>(), grad_h.data_ptr<scalar_t>(),
-        grad_v.data_ptr<scalar_t>(), elements, input.size(-2), input.size(-1));
-  });
+  
+  gradient_kernel<scalar_t><<<blocks, kThreads, 0,c10::cuda::getCurrentCUDAStream()>>>(input.data_ptr<scalar_t>(), grad_h.data_ptr<scalar_t>(), grad_v.data_ptr<scalar_t>(), elements, input.size(-2), input.size(-1));});
+
   C10_CUDA_KERNEL_LAUNCH_CHECK();
+  
   return {grad_h, grad_v};
+
 }
 
 torch::Tensor admm_divergence_cuda(torch::Tensor grad_h, torch::Tensor grad_v) {
@@ -110,7 +126,7 @@ torch::Tensor admm_divergence_cuda(torch::Tensor grad_h, torch::Tensor grad_v) {
 
   AT_DISPATCH_FLOATING_TYPES_AND_HALF(grad_h.scalar_type(), "admm_divergence_cuda", [&] {
     divergence_kernel<scalar_t><<<blocks, kThreads, 0,
-        at::cuda::getCurrentCUDAStream()>>>(
+        c10::cuda::getCurrentCUDAStream()>>>(
         grad_h.data_ptr<scalar_t>(), grad_v.data_ptr<scalar_t>(),
         output.data_ptr<scalar_t>(), elements, grad_h.size(-2), grad_h.size(-1));
   });
@@ -137,7 +153,7 @@ std::vector<torch::Tensor> admm_shrink_dual_cuda(
 
   AT_DISPATCH_FLOATING_TYPES_AND_HALF(grad_h.scalar_type(), "admm_shrink_dual_cuda", [&] {
     shrink_dual_kernel<scalar_t><<<blocks, kThreads, 0,
-        at::cuda::getCurrentCUDAStream()>>>(
+        c10::cuda::getCurrentCUDAStream()>>>(
         grad_h.data_ptr<scalar_t>(), grad_v.data_ptr<scalar_t>(),
         dual_h.data_ptr<scalar_t>(), dual_v.data_ptr<scalar_t>(),
         threshold.data_ptr<scalar_t>(), scalar_threshold,

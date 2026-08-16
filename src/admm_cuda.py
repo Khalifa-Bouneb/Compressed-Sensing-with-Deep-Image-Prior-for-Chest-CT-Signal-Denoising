@@ -10,7 +10,11 @@ from pathlib import Path
 
 import torch
 from torch.utils.cpp_extension import CUDA_HOME, load
-from .admm_profile import profile_region
+
+if __package__:
+    from .admm_profile import profile_region
+else:
+    from admm_profile import profile_region
 
 
 _EXTENSION = None
@@ -59,7 +63,9 @@ def _load_extension():
 class _PeriodicGradient(torch.autograd.Function):
     @staticmethod
     def forward(ctx, image):
-        return tuple(_load_extension().gradient(image))
+        (Dh_out, Dv_out) = tuple(_load_extension().gradient(image))
+        # ctx.save_for_backward(image)
+        return Dh_out, Dv_out
 
     @staticmethod
     def backward(ctx, grad_h, grad_v):

@@ -2,8 +2,13 @@
 
 #include <vector>
 
+// CUDA forward declarations
+//(torch::tensor input) INPUT
+//(std::vector<torch::Tensor>) OUTPUT == VECTOR OF TENSORS
 std::vector<torch::Tensor> admm_gradient_cuda(torch::Tensor input);
+
 torch::Tensor admm_divergence_cuda(torch::Tensor grad_h, torch::Tensor grad_v);
+
 std::vector<torch::Tensor> admm_shrink_dual_cuda(
     torch::Tensor grad_h,
     torch::Tensor grad_v,
@@ -47,10 +52,11 @@ std::vector<torch::Tensor> admm_shrink_dual(
       dual_v.contiguous(), threshold.contiguous(), epsilon);
 }
 
+//this will map the C++ kernel to python funtion :
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, module) {
+
   module.def("gradient", &admm_gradient, "Periodic forward differences (CUDA)");
-  module.def("divergence", &admm_divergence,
-             "Adjoint periodic differences (CUDA)");
-  module.def("shrink_dual", &admm_shrink_dual,
-             "Fused isotropic shrinkage and ADMM dual update (CUDA)");
+  module.def("divergence", &admm_divergence, "Adjoint periodic differences (CUDA)");
+  module.def("shrink_dual", &admm_shrink_dual, "Fused isotropic shrinkage and ADMM dual update (CUDA)");
+
 }

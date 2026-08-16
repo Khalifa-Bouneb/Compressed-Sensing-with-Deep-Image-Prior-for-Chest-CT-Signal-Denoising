@@ -1,4 +1,4 @@
-"""Compare eager FFT ADMM-DIP-TV with the custom CUDA/fallback implementation.
+"""Compare eager ADMM-DIP-TV with the custom CUDA/fallback implementation.
 
 The script uses one real BSDS300 image and exactly the same noisy observation,
 network seed, and DIP-input seed for both methods. It does not enable a profiler.
@@ -17,9 +17,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import skimage.io
 import torch
+from torch.utils.data import Dataset
 from skimage.metrics import peak_signal_noise_ratio, structural_similarity
 
-from src import denoise_dip_tv as custom_tv
+from src import denoise_dip_tv_cuda as custom_tv
 from src import denoise_dip_tv_eager as eager_tv
 from src.admm_cuda import (
     cuda_extension_available,
@@ -31,7 +32,7 @@ from src.utils import D, add_speckle, process_image_tensor, psf2otf
 
 
 METHODS = {
-    "eager_fft": eager_tv,
+    "eager": eager_tv,
     "custom_cuda": custom_tv,
 }
 
@@ -47,36 +48,83 @@ def synchronize():
     if torch.cuda.is_available():
         torch.cuda.synchronize()
 
+class BSDS300Dataset(Dataset):
+    def __init__(self, root='./Dataset/BSDS300/BSDS300', patch_size=32, use_patches=True):
+        files = self._resolve_image_files(root)
+        
+        self.use_patches = use_patches
+        self.images = self.load_images(files)
+        self.patches = self.patchify(self.images, patch_size)
+        self.mean = torch.mean(self.patches)
+        self.std = torch.std(self.patches)
 
-def load_real_input(dataset_root, image_index, image_size):
-    image_root = Path(dataset_root) / "images"
-    files = sorted(path for path in image_root.rglob("*") if path.is_file())
-    if not files:
-        raise FileNotFoundError(f"No images found below {image_root.resolve()}")
-    if not 0 <= image_index < len(files):
-        raise IndexError(f"image-index must be in [0, {len(files) - 1}]")
+    def _resolve_image_files(self, root, split=None):
+        image_root = os.path.join(root, 'images')
+        candidates = []
 
-    image = skimage.io.imread(files[image_index])
-    if image.ndim == 2:
-        image = np.repeat(image[..., None], 3, axis=2)
-    image = image[..., :3]
-    if image.shape[0] > image.shape[1]:
-        image = image.transpose(1, 0, 2)
-    tensor = torch.from_numpy(
-        image.transpose(2, 0, 1).astype(np.float32) / 255.0
-    )
-    if image_size:
-        height, width = tensor.shape[-2:]
-        if image_size > min(height, width):
-            raise ValueError(
-                f"image-size {image_size} exceeds input shape {height}x{width}"
-            )
-        top = (height - image_size) // 2
-        left = (width - image_size) // 2
-        tensor = tensor[:, top:top + image_size, left:left + image_size]
+        if split is not None:
+            candidates.append(os.path.join(image_root, split, '*'))
 
-    image_pil, clean_tensor = process_image_tensor(tensor, d=32)
-    return files[image_index], image_pil, clean_tensor.cpu()
+        candidates.append(os.path.join(image_root, '*'))
+
+        files = []
+        for pattern in candidates:
+            files = sorted(fname for fname in glob(pattern) if os.path.isfile(fname))
+            if files:
+                return files
+
+        searched = ", ".join(candidates)
+        raise FileNotFoundError(
+            f"No image files were found for BSDS300Dataset. "
+            f"Searched: {searched}. Check the root path: {root}"
+        )
+
+    def load_images(self, files):
+        out = []
+        for fname in files:
+            img = skimage.io.imread(fname)
+            if img.shape[0] > img.shape[1]:
+                img = img.transpose(1, 0, 2)
+            img = img.transpose(2, 0, 1).astype(np.float32) / 255.
+            out.append(torch.from_numpy(img))
+        return torch.stack(out)
+    
+    def patchify(self, img_array, patch_size):
+        # create patches from image array of size (N_images, 3, rows, cols)
+        patches = img_array.unfold(2, patch_size, patch_size).unfold(3, patch_size, patch_size)
+        patches = patches.reshape(patches.shape[0], 3, -1, patch_size, patch_size)
+        patches = patches.permute(0, 2, 1, 3, 4).reshape(-1, 3, patch_size, patch_size)
+        return patches
+
+    def __len__(self):
+        if self.use_patches:
+            return self.patches.shape[0]
+        else:
+            return self.images.shape[0]
+
+    def __getitem__(self, idx):
+        if self.use_patches:
+            return self.patches[idx]
+        else:
+            return self.images[idx]
+
+
+
+
+
+
+subset = get_random_subset(dataset, subset_size=1) ####CHANGE THIS
+
+
+processed_pils, processed_tensors = process_subset(subset)
+
+img_pil = processed_pils[i]
+img_tensor = processed_tensors[i]
+img_np = processed_tensors[i].numpy()
+img_noisy_np = add_speckle(img_tensor, sigma).numpy()
+
+
+
 
 
 @contextmanager
@@ -108,12 +156,12 @@ def run_variant(name, module, image_pil, clean, noisy, iterations, seed):
     started = time.perf_counter()
     method = (
         module.admm_dip_single_eager
-        if name == "eager_fft"
+        if name == "eager"
         else module.admm_dip_single
     )
     with method_settings(module, iterations):
         metrics, output_dump = method(
-            image_pil, clean, noisy, ind=1, verbose=False
+            image_pil, img_np, img_noisy_np, ind=1, verbose=False
         )
     synchronize()
     elapsed = time.perf_counter() - started
@@ -184,7 +232,7 @@ def quality_summary(clean, noisy, eager_output, custom_output):
 
 def save_results(output_dir, source_path, clean, noisy, runs, metadata):
     output_dir.mkdir(parents=True, exist_ok=True)
-    eager = runs["eager_fft"]
+    eager = runs["eager"]
     custom = runs["custom_cuda"]
     quality = quality_summary(clean, noisy, eager["output"], custom["output"])
     speedup = eager["elapsed_seconds"] / custom["elapsed_seconds"]

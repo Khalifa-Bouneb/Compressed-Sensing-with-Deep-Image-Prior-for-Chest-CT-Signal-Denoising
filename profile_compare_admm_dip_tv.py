@@ -1,4 +1,4 @@
-"""Profile eager FFT and custom CUDA ADMM-DIP-TV on the same real input."""
+"""Profile eager and custom CUDA ADMM-DIP-TV on the same real input."""
 
 import argparse
 import json
