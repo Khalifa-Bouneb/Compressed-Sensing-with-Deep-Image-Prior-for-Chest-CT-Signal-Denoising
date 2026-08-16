@@ -25,7 +25,9 @@ from src.models_dip import *
 from src.utils import *
 from src.denoise_deblur_dip import *
 from src.denoise_dip_tv_eager import *
-from src.denoise_dip_tvw import *
+from src.denoise_dip_tvw_eager import *
+from src.denoise_dip_tv_cuda import *
+from src.denoise_dip_tvw_cuda import *
 from src.baselines import bm3d_denoise
 from PIL import Image
 import torchvision.transforms.functional as TF
@@ -201,8 +203,17 @@ def run_method(dataset, dataset_name="BSDS300", task="denoise", method= "DIP", f
                             with profile_region("OUTPUT_SERIALIZATION_MODEL"):
                                 with open(fsavepath + "/denoise/" + method + f"/model_image={i+1}.pkl", "wb") as f:
                                     pickle.dump(output, f)
+                        elif method == "ADMM-DIP-CUDA":
+                            metrics, output = admm_dip_single_cuda(img_pil, img_np, img_noisy_np, i+1, verbose=verbose)
+                            with profile_region("OUTPUT_SERIALIZATION_MODEL"):
+                                with open(fsavepath + "/denoise/" + method + f"/model_image={i+1}.pkl", "wb") as f:
+                                    pickle.dump(output, f)
                         elif method == "ADMM-DIPWTV":
-                            metrics, output = admm_dip_wtv_single(img_pil, img_np, img_noisy_np, i+1, verbose=verbose)
+                            metrics, output = admm_dip_wtv_single_eager(img_pil, img_np, img_noisy_np, i+1, verbose=verbose)
+                            with open(fsavepath + "/denoise/" + method + f"/model_image={i+1}.pkl", "wb") as f:
+                                pickle.dump(output, f)
+                        elif method == "ADMM-DIPWTV-CUDA":
+                            metrics, output = admm_dip_wtv_single_cuda(img_pil, img_np, img_noisy_np, i+1, verbose=verbose)
                             with open(fsavepath + "/denoise/" + method + f"/model_image={i+1}.pkl", "wb") as f:
                                 pickle.dump(output, f)
                         else :
