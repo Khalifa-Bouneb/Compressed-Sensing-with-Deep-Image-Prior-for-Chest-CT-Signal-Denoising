@@ -5,6 +5,7 @@ import numpy as np
 import skimage.io
 import torch
 from torch.utils.data import Dataset
+from torch.autograd import gradcheck
 
 from config import *
 from models_dip import *
@@ -159,7 +160,21 @@ def run_cuda_gradient(out):
     Dh_out, Dv_out = periodic_gradient(out)
     return Dh_out, Dv_out
 
+def run_gradcheck(out):
+    test_input = torch.randn(
+        1, 1, 4, 5,
+        device=out.device,
+        dtype=torch.float64,
+        requires_grad=True,
+    )
 
+    return gradcheck(
+        periodic_gradient,
+        (test_input,),
+        eps=1e-6,
+        atol=1e-5,
+        rtol=1e-3,
+    )
 # ============================================================
 # Numerical correctness comparison
 # ============================================================
@@ -409,3 +424,4 @@ if __name__ == "__main__":
     print("\n============================================================")
     print(f"SPEEDUP: {speedup:.2f}x")
     print("============================================================")
+    print(run_gradcheck(out))
