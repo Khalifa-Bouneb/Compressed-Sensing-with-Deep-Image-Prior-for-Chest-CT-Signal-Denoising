@@ -1,0 +1,39 @@
+ninja_required_version = 1.3
+cxx = x86_64-conda-linux-gnu-c++
+nvcc = /home/intern/miniforge3/envs/cuda-dev/bin/nvcc
+
+cflags = -DTORCH_EXTENSION_NAME=dip_admm_cuda -DTORCH_API_INCLUDE_EXTENSION_H -isystem /home/intern/miniforge3/envs/cuda-dev/lib/python3.11/site-packages/torch/include -isystem /home/intern/miniforge3/envs/cuda-dev/lib/python3.11/site-packages/torch/include/torch/csrc/api/include -isystem /home/intern/miniforge3/envs/cuda-dev/include -isystem /home/intern/miniforge3/envs/cuda-dev/include/python3.11 -fPIC -std=c++20 -O3
+post_cflags = 
+cuda_cflags = -ccbin x86_64-conda-linux-gnu-cc -DTORCH_EXTENSION_NAME=dip_admm_cuda -DTORCH_API_INCLUDE_EXTENSION_H -isystem /home/intern/miniforge3/envs/cuda-dev/lib/python3.11/site-packages/torch/include -isystem /home/intern/miniforge3/envs/cuda-dev/lib/python3.11/site-packages/torch/include/torch/csrc/api/include -isystem /home/intern/miniforge3/envs/cuda-dev/include -isystem /home/intern/miniforge3/envs/cuda-dev/include/python3.11 -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_BFLOAT16_CONVERSIONS__ -D__CUDA_NO_HALF2_OPERATORS__ --expt-relaxed-constexpr -gencode=arch=compute_80,code=compute_80 -gencode=arch=compute_80,code=sm_80 --compiler-options '-fPIC' -O3 --use_fast_math -std=c++20
+cuda_post_cflags = 
+cuda_dlink_post_cflags = 
+sycl_dlink_post_cflags = 
+ldflags = -shared -L/home/intern/miniforge3/envs/cuda-dev/lib/python3.11/site-packages/torch/lib -lc10 -lc10_cuda -ltorch_cpu -ltorch_cuda -ltorch -ltorch_python -L/home/intern/miniforge3/envs/cuda-dev/lib -lcudart
+
+rule compile
+  command = $cxx -MMD -MF $out.d $cflags -c $in -o $out $post_cflags
+  depfile = $out.d
+  deps = gcc
+
+rule cuda_compile
+  depfile = $out.d
+  deps = gcc
+  command = $nvcc -MD -MF $out.d $cuda_cflags -c $in -o $out $cuda_post_cflags
+
+
+
+
+
+rule link
+  command = $cxx $in $ldflags -o $out
+
+build admm_ops.o: compile /home/intern/mohamed/Compressed-Sensing-with-Deep-Image-Prior-for-Chest-CT-Signal-Denoising/src/cuda_ops/admm_ops.cpp
+build admm_ops_cuda.cuda.o: cuda_compile /home/intern/mohamed/Compressed-Sensing-with-Deep-Image-Prior-for-Chest-CT-Signal-Denoising/src/cuda_ops/admm_ops_cuda.cu
+
+
+
+
+
+build dip_admm_cuda.so: link admm_ops.o admm_ops_cuda.cuda.o
+
+default dip_admm_cuda.so
