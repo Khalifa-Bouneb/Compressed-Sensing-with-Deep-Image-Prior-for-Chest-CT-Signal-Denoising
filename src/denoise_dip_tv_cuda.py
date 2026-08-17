@@ -130,10 +130,9 @@ def admm_dip_single_cuda(img_pil, img_clean_np, y, ind, verbose=False):
     outer_iterations = profile_iteration_setting(
         "DIP_PROFILE_OUTER_ITERATIONS", num_iter
     )
-    # inner_iterations = profile_iteration_setting(
-    #     "DIP_PROFILE_INNER_ITERATIONS", 10
-    # )
-    inner_iterations = 1
+    inner_iterations = profile_iteration_setting(
+        "DIP_PROFILE_INNER_ITERATIONS", 1
+    )
     lbfgs_max_iter = profile_iteration_setting(
         "DIP_PROFILE_LBFGS_MAX_ITER", 20
     )

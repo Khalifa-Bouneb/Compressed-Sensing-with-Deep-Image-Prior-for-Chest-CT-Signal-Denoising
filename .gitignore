@@ -4,7 +4,6 @@
 __pycache__/
 *.py[cod]
 *$py.class
-*.so
 *.egg
 *.egg-info/
 dist/
@@ -49,7 +48,8 @@ Desktop.ini
 results/*.png
 !results/README.md
 !results/*.csv
-
+results/
+results
 # ========================
 # Model checkpoints & weights
 # ========================

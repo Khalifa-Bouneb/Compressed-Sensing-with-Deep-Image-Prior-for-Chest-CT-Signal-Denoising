@@ -71,6 +71,7 @@ input_depth = ADMM_DIP_PARAMS['input_depth']
 figsize = ADMM_DIP_PARAMS['figsize']
 
 
+@profiled("ADMM_DIP_TOTAL")
 @profiled("ADMM_DIP_EAGER_TOTAL")
 def admm_dip_single_eager(img_pil, img_clean_np, y, ind, verbose=False):
     
@@ -133,10 +134,9 @@ def admm_dip_single_eager(img_pil, img_clean_np, y, ind, verbose=False):
     outer_iterations = profile_iteration_setting(
         "DIP_PROFILE_OUTER_ITERATIONS", num_iter
     )
-    # inner_iterations = profile_iteration_setting(
-    #     "DIP_PROFILE_INNER_ITERATIONS", 10
-    # )
-    inner_iterations = 1
+    inner_iterations = profile_iteration_setting(
+        "DIP_PROFILE_INNER_ITERATIONS", 1
+    )
     lbfgs_max_iter = profile_iteration_setting(
         "DIP_PROFILE_LBFGS_MAX_ITER", 20
     )
@@ -152,126 +152,133 @@ def admm_dip_single_eager(img_pil, img_clean_np, y, ind, verbose=False):
 
     for i in range(outer_iterations):
         increment_counter("outer_iterations")
-        
-        # Regularization
-        if inner_iterations>1:
-            # optimizer = torch.optim.Adam(net.parameters(), lr=LR)
-            with profile_region("OPTIMIZER_INITIALIZATION_LBFGS"):
-                optimizer = torch.optim.LBFGS(
-                    net.parameters(), lr=LR, tolerance_grad=-1,
-                    tolerance_change=-1, max_iter=lbfgs_max_iter
+        with profile_region("ADMM_OUTER_ITERATION"):
+            # Regularization
+            if inner_iterations>1:
+                # optimizer = torch.optim.Adam(net.parameters(), lr=LR)
+                with profile_region("OPTIMIZER_INITIALIZATION_LBFGS"):
+                    optimizer = torch.optim.LBFGS(
+                        net.parameters(), lr=LR, tolerance_grad=-1,
+                        tolerance_change=-1, max_iter=lbfgs_max_iter
+                    )
+            # Update theta
+            for j in range(inner_iterations):
+                def closure():
+                    increment_counter("closure_calls")
+                    with profile_region("LBFGS_CLOSURE"):
+                        optimizer.zero_grad()
+                        with profile_region("DIP_FORWARD"):
+                            out = net(net_input)
+                        with profile_region("ADMM_DERIVATIVES"):
+                            with profile_region("ADMM_DERIVATIVES_FFT"):
+                                [Dh_out, Dv_out] = D(out, Dh_DFT, Dv_DFT)
+
+                        with profile_region("LOSS_COMPUTATION"):
+                            total_loss = norm2_loss(out - img_noisy_torch)
+                            total_loss += (beta_t / 2) * norm2_loss(
+                                Dh_out - (t_h - mu_t_h).detach()
+                            )
+                            total_loss += (beta_t / 2) * norm2_loss(
+                                Dv_out - (t_v - mu_t_v).detach()
+                            )
+
+                        with profile_region("BACKWARD"):
+                            total_loss.backward()
+                        return total_loss
+
+                increment_counter("inner_iterations")
+                increment_counter("optimizer_step_calls")
+                with profile_region(
+                    "LBFGS_STEP" if inner_iterations > 1 else "ADAM_STEP"
+                ):
+                    total_loss = optimizer.step(closure)
+
+            running_loss = total_loss.item()
+            loss_values.append(running_loss)
+
+            with profile_region("DIP_FORWARD_POST_STEP"):
+                out = net(net_input)
+
+            with profile_region("ADMM_DERIVATIVES_POST_STEP"):
+                with profile_region("ADMM_DERIVATIVES_FFT_POST_STEP"):
+                    [Dh_out, Dv_out] = D(out, Dh_DFT, Dv_DFT)
+
+            # TV problem and ascent step.
+            with profile_region("TV_SHRINKAGE_AND_DUAL_UPDATE"):
+                with profile_region("TV_SHRINKAGE_EAGER"):
+                    q_h                 = Dh_out + mu_t_h
+                    q_v                 = Dv_out + mu_t_v
+                    q_norm              = torch.sqrt(torch.pow(q_h,2) + torch.pow(q_v,2))
+                    q_norm[q_norm == 0] = weight/beta_t
+                    q_norm              = torch.clamp( q_norm - weight/beta_t , min=0 )/q_norm
+                    t_h                 = (q_norm * q_h).detach().clone()
+                    t_v                 = (q_norm * q_v).detach().clone()
+
+                with profile_region("DUAL_UPDATE_EAGER"):
+                    mu_t_h = (mu_t_h + (Dh_out - t_h)).detach().clone()
+                    mu_t_v = (mu_t_v + (Dv_out - t_v)).detach().clone()
+
+            with profile_region("CPU_GPU_TRANSFER_METRICS"):
+                psrn_noisy = compare_psnr(y, out.detach().cpu().numpy()[0])
+                psrn_gt = compare_psnr(
+                    img_clean_np, out.detach().cpu().numpy()[0]
                 )
-        # Update theta
-        for j in range(inner_iterations):
-            def closure():
-                increment_counter("closure_calls")
-                with profile_region("LBFGS_CLOSURE"):
-                    optimizer.zero_grad()
-                    with profile_region("DIP_FORWARD"):
-                        out = net(net_input)
-                    with profile_region("ADMM_DERIVATIVES_FFT"):
-                        [Dh_out, Dv_out] = D(out, Dh_DFT, Dv_DFT)
+            with profile_region("METRICS"):
+                psnr_values.append(psrn_gt)
+                ssim_gt, _ = ssim(img_clean_np.transpose(1,2,0), out.detach().cpu().numpy()[0].transpose(1,2,0), win_size=7, full=True, data_range = 1.0, channel_axis=2)
+                ssim_noisy, _ = ssim(y.transpose(1,2,0), out.detach().cpu().numpy()[0].transpose(1,2,0), win_size=7, full=True, data_range = 1.0, channel_axis=2)
 
-                    with profile_region("LOSS_COMPUTATION"):
-                        total_loss = norm2_loss(out - img_noisy_torch)
-                        total_loss += (beta_t / 2) * norm2_loss(
-                            Dh_out - (t_h - mu_t_h).detach()
-                        )
-                        total_loss += (beta_t / 2) * norm2_loss(
-                            Dv_out - (t_v - mu_t_v).detach()
-                        )
+                sobel_gt = cv2.Sobel(img_clean_np.transpose(1,2,0), cv2.CV_64F, 1,1, ksize=5)
+                sobel_out = cv2.Sobel(out.detach().cpu().numpy()[0].transpose(1,2,0), cv2.CV_64F, 1,1, ksize=5)
+                dssim, _ = ssim(sobel_gt, sobel_out, win_size=7, full=True, data_range = 1.0, channel_axis=2)
 
-                    with profile_region("BACKWARD"):
-                        total_loss.backward()
-                    return total_loss
+                metrics.append({
+                    "iteration": i,
+                    "PSNR_noisy": psrn_noisy,
+                    "PSNR_gt": psrn_gt,
+                    "SSIM_gt": ssim_gt,
+                    "SSIM_noisy": ssim_noisy,
+                    "DSSIM": dssim,
+                    "loss": total_loss.item()
+                })
 
-            increment_counter("inner_iterations")
-            increment_counter("optimizer_step_calls")
-            with profile_region("LBFGS_STEP"):
-                total_loss = optimizer.step(closure)
-        
-        
-        running_loss = total_loss.item()
-        loss_values.append(running_loss)
+                current_score = metrics[-1].get(early_stopping_metric)
+                if current_score is None:
+                    raise ValueError(
+                        "Unsupported early stopping metric: "
+                        f"{early_stopping_metric}"
+                    )
 
-        with profile_region("DIP_FORWARD_POST_STEP"):
-            out = net(net_input)
-    
-        with profile_region("ADMM_DERIVATIVES_FFT_POST_STEP"):
-            [Dh_out, Dv_out] = D(out, Dh_DFT, Dv_DFT)
+                if current_score > best_score + early_stopping_min_delta:
+                    best_score = current_score
+                    best_iteration = i
+                    best_state_dict = {
+                        name: tensor.detach().cpu().clone()
+                        for name, tensor in net.state_dict().items()
+                    }
+                elif (
+                    early_stopping
+                    and (i - best_iteration) >= early_stopping_patience
+                ):
+                    should_stop = True
 
-        #TV problem: second problem 
-        with profile_region("TV_SHRINKAGE_EAGER"):
-            q_h                 = Dh_out + mu_t_h
-            q_v                 = Dv_out + mu_t_v
-            q_norm              = torch.sqrt(torch.pow(q_h,2) + torch.pow(q_v,2))
-            q_norm[q_norm == 0] = weight/beta_t
-            q_norm              = torch.clamp( q_norm - weight/beta_t , min=0 )/q_norm
-            t_h                 = (q_norm * q_h).detach().clone()
-            t_v                 = (q_norm * q_v).detach().clone()
+            print ('Iteration %05d    Loss %f   PSNR_noisy: %f   PSRN_gt: %f' % (i, total_loss.item(), psrn_noisy, psrn_gt), '\r', end='')
 
-        # Ascent step: update the dual variables on the same device as the image tensors.
-        with profile_region("DUAL_UPDATE_EAGER"):
-            mu_t_h = (mu_t_h + (Dh_out - t_h)).detach().clone()
-            mu_t_v = (mu_t_v + (Dv_out - t_v)).detach().clone()
+            if PLOT and ((i % show_every == 0) or (i == outer_iterations-1)):
+                with profile_region("CPU_GPU_TRANSFER_PLOTTING"):
+                    out_np = torch_to_np(out)
+                with profile_region("PLOTTING"):
+                    plot_image_grid([np.clip(out_np, 0, 1), y, img_clean_np], factor=figsize, index=i, view=verbose, prefix= "ADMM-DIP", tag=f"sigma{sigma}", tag1=f"image={ind}")
 
-        psrn_noisy = compare_psnr(y, out.detach().cpu().numpy()[0]) 
-        psrn_gt    = compare_psnr(img_clean_np, out.detach().cpu().numpy()[0]) 
-        psnr_values.append(psrn_gt)
-        ssim_gt, _ = ssim(img_clean_np.transpose(1,2,0), out.detach().cpu().numpy()[0].transpose(1,2,0), win_size=7, full=True, data_range = 1.0, channel_axis=2)
-        ssim_noisy, _ = ssim(y.transpose(1,2,0), out.detach().cpu().numpy()[0].transpose(1,2,0), win_size=7, full=True, data_range = 1.0, channel_axis=2)
-        # ssim_gt_sm, _ = ssim(img_np.transpose(1,2,0), out_avg.detach().cpu().numpy()[0].transpose(1,2,0), win_size=7, full=True, channel_axis=2)
-        
-        sobel_gt = cv2.Sobel(img_clean_np.transpose(1,2,0), cv2.CV_64F, 1,1, ksize=5)
-        sobel_out = cv2.Sobel(out.detach().cpu().numpy()[0].transpose(1,2,0), cv2.CV_64F, 1,1, ksize=5)
-        dssim, _ = ssim(sobel_gt, sobel_out, win_size=7, full=True, data_range = 1.0, channel_axis=2)
-        
-        metrics.append({
-            "iteration": i, 
-            "PSNR_noisy": psrn_noisy, 
-            "PSNR_gt": psrn_gt, 
-            # "PSNR_gt_sm": psrn_gt,
-            "SSIM_gt": ssim_gt,
-            "SSIM_noisy": ssim_noisy,
-            "DSSIM": dssim,
-            "loss": total_loss.item()  # Include the loss here
-        })
+            out_dump = [net, net_input]
 
-        current_score = metrics[-1].get(early_stopping_metric)
-        if current_score is None:
-            raise ValueError(
-                "Unsupported early stopping metric: "
-                f"{early_stopping_metric}"
-            )
-
-        if current_score > best_score + early_stopping_min_delta:
-            best_score = current_score
-            best_iteration = i
-            best_state_dict = {
-                name: tensor.detach().cpu().clone()
-                for name, tensor in net.state_dict().items()
-            }
-        elif (
-            early_stopping
-            and (i - best_iteration) >= early_stopping_patience
-        ):
-            should_stop = True
-        
-        print ('Iteration %05d    Loss %f   PSNR_noisy: %f   PSRN_gt: %f' % (i, total_loss.item(), psrn_noisy, psrn_gt), '\r', end='')
-        
-        if PLOT and ((i % show_every == 0) or (i == outer_iterations-1)):
-            out_np = torch_to_np(out)
-            plot_image_grid([np.clip(out_np, 0, 1), y, img_clean_np], factor=figsize, index=i, view=verbose, prefix= "ADMM-DIP", tag=f"sigma{sigma}", tag1=f"image={ind}")
-    
-        out_dump = [net, net_input]
-
-        if should_stop:
-            print(
-                f"\nEarly stopping at iteration {i}; restoring best "
-                f"checkpoint from iteration {best_iteration} with "
-                f"{early_stopping_metric}={best_score:.6f}."
-            )
-            break
+            if should_stop:
+                print(
+                    f"\nEarly stopping at iteration {i}; restoring best "
+                    f"checkpoint from iteration {best_iteration} with "
+                    f"{early_stopping_metric}={best_score:.6f}."
+                )
+                break
 
     if best_state_dict is not None:
         net.load_state_dict(best_state_dict)
