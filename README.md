@@ -1,0 +1,233 @@
+# GPU-Accelerated Deep Image Prior for Image Denoising
+
+This repository explores single-image restoration with **Deep Image Prior
+(DIP)**, **ADMM**, and total-variation regularization. The main engineering
+achievement is a native PyTorch C++/CUDA extension for the image operators used
+inside ADMM. On a real `1 × 3 × 320 × 480` DIP output, the custom periodic
+gradient is numerically consistent with the FFT implementation and is **9.52×
+faster** in the recorded CUDA-event benchmark.
+
+> **Current scope.** The working experiments use RGB images from the local
+> BSDS300 sample for denoising. The repository title describes the longer-term
+> chest-CT/compressed-sensing direction; a CT measurement operator and CT
+> dataset are not yet part of the validated pipeline.
+
+## Highlights
+
+- Vanilla DIP denoising with an untrained convolutional generator.
+- ADMM-DIP with total variation (TV) and adaptive weighted TV (WTV).
+- Native CUDA kernels for periodic gradient, divergence, shrinkage, and dual
+  updates, with a transparent PyTorch fallback.
+- Autograd support for the custom periodic-gradient operator.
+- Reproducible comparison of eager PyTorch, compiled PyTorch, and custom CUDA
+  implementations on the same image and noisy observation.
+- PyTorch Profiler/Perfetto traces plus loss and ground-truth PSNR tracks.
+- Classical BM3D, Wiener, TV, Richardson–Lucy, and supervised-model baselines.
+
+## Method
+
+For a corrupted observation \(y\), DIP represents the restored image as the
+output of an untrained network \(f_\theta\) driven by fixed random noise \(z\):
+
+$$
+\hat{x}=f_\theta(z).
+$$
+
+The TV-regularized problem is
+
+$$
+\min_\theta \frac{1}{2}\lVert f_\theta(z)-y\rVert_2^2
++ \lambda\lVert Df_\theta(z)\rVert_{2,1},
+$$
+
+where \(D\) is the horizontal/vertical finite-difference operator. ADMM splits
+the image-gradient term from network optimization. The CUDA extension computes
+the periodic forward differences directly in image space:
+
+$$
+D_hx[i,j]=x[i,j+1]-x[i,j], \qquad
+D_vx[i,j]=x[i+1,j]-x[i,j],
+$$
+
+with wrap-around boundaries. This avoids the forward FFT, two frequency-domain
+multiplications, and two inverse FFTs previously needed for each gradient call.
+
+## Recorded achievement: custom CUDA gradient
+
+The following measurements were obtained over 100 calls on one real DIP output
+of shape `1 × 3 × 320 × 480`, using `float32` on `cuda:0`.
+
+| Implementation | Total time (100 calls) | Average per call | Relative speed |
+|---|---:|---:|---:|
+| FFT gradient | 39.189503 ms | 391.895 µs | 1.00× |
+| Custom CUDA gradient | 4.116480 ms | 41.165 µs | **9.52×** |
+
+Correctness against the FFT reference:
+
+| Direction | Maximum absolute error | Mean absolute error |
+|---|---:|---:|
+| Horizontal | `3.2619573e-07` | `6.2645512e-08` |
+| Vertical | `2.5774352e-07` | `4.7060624e-08` |
+
+The profiler also reduced total self-CUDA time for 100 profiled calls from
+`70.728 ms` to `8.105 ms`. Small floating-point differences are expected
+because the implementations use different numerical paths.
+
+## Denoising results
+
+Representative metrics already recorded in [`system.ipynb`](system.ipynb) for
+one BSDS image with speckle noise are shown below. These are individual notebook
+runs, not dataset-wide averages.
+
+| Method | Best/final PSNR against ground truth | SSIM against ground truth | Notes |
+|---|---:|---:|---|
+| Noisy observation | 24.08 dB | 0.6122 | Input baseline from the BM3D run |
+| BM3D | 25.35 dB | 0.6752 | Classical baseline |
+| DIP | 23.34 dB | 0.6063 | Early-stopped; best checkpoint at iteration 867 |
+| ADMM-DIP-TV | 23.36 dB | — | Best checkpoint at iteration 893 |
+
+### Add new notebook results here
+
+Run all cells in [`system.ipynb`](system.ipynb), then add the final values to
+the table below. Keep the image index, noise model, noise level, seed, and
+iteration count beside every result so comparisons remain reproducible.
+
+<!-- RESULTS:START - Replace or extend rows below with results from system.ipynb. -->
+
+| Image | Noise / degradation | Method | Iterations | PSNR (dB) ↑ | SSIM ↑ | DSSIM ↓ | Runtime |
+|---|---|---|---:|---:|---:|---:|---:|
+| `image index` | `speckle, σ=...` | `method` | `...` | `...` | `...` | `...` | `...` |
+
+<!-- RESULTS:END -->
+
+Example ADMM-DIP optimization snapshots:
+
+![ADMM-DIP denoising snapshots](results/denoise/ADMM-DIP/image_grid_img_sigma0.1_9__image=1.png)
+
+The end-to-end profiler can also generate a comparison plot at
+`profiling/dip_native_cuda_test_metrics.png`:
+
+![DIP CUDA profiling metrics](profiling/dip_native_cuda_test_metrics.png)
+
+## Repository layout
+
+```text
+.
+├── Dataset/                       Local image data
+├── src/
+│   ├── admm_cuda.py               Lazy CUDA loading and PyTorch fallback
+│   ├── cuda_ops/
+│   │   ├── admm_ops.cpp           PyTorch extension bindings
+│   │   └── admm_ops_cuda.cu       Native CUDA kernels
+│   ├── denoise_dip_tv_eager.py    ADMM-DIP-TV, eager implementation
+│   ├── denoise_dip_tv_compile.py  Compiled implementation
+│   ├── denoise_dip_tv_cuda.py     Native-CUDA TV implementation
+│   ├── denoise_dip_tvw_eager.py   Weighted-TV eager implementation
+│   └── denoise_dip_tvw_cuda.py    Weighted-TV CUDA implementation
+├── results/                       Restored-image outputs
+├── profiling/                     Perfetto traces and metric plots
+├── profile_dip_eager_cuda_perfetto.py
+├── run_dip_denoise_deblur.py      Experiment runner and dataset loader
+└── system.ipynb                   Main experiment notebook and results
+```
+
+## Setup
+
+Create and activate a Python environment, then install the Python dependencies:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+```
+
+The classical and CPU/PyTorch paths do not require the native extension. To use
+the custom kernels, an NVIDIA GPU, a CUDA-enabled PyTorch build, the CUDA
+toolkit, and `nvcc` are required. The extension is compiled lazily on its first
+CUDA call and cached under `src/cuda_ops/build/`.
+
+For the CUDA 13 packages used during the recorded experiment, expose the
+toolkit headers and libraries as follows. Adjust `python3.11` and `cu13` to
+match the active environment:
+
+```bash
+export CUDA_PYTHON_ROOT="$CONDA_PREFIX/lib/python3.11/site-packages/nvidia/cu13"
+export CPATH="$CUDA_PYTHON_ROOT/include${CPATH:+:$CPATH}"
+export LIBRARY_PATH="$CONDA_PREFIX/lib:$CUDA_PYTHON_ROOT/lib${LIBRARY_PATH:+:$LIBRARY_PATH}"
+export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:$CUDA_PYTHON_ROOT/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+```
+
+## Run the CUDA correctness and speed benchmark
+
+From the repository root:
+
+```bash
+python -m src.verifying_cuda
+```
+
+The test:
+
+1. creates one real DIP output;
+2. compares custom CUDA horizontal and vertical gradients with the FFT result;
+3. profiles both implementations;
+4. reports CUDA-event timing and speedup; and
+5. runs an autograd gradient check.
+
+To force the portable PyTorch fallback in other experiments, set
+`DIP_DISABLE_CUDA_EXT=1`.
+
+## Profile the complete ADMM-DIP pipeline
+
+This command runs TV/WTV eager and CUDA variants on the same deterministic
+input, exports a Perfetto trace, and saves a metric plot:
+
+```bash
+TORCH_COMPILE_DEBUG=1 python profile_dip_eager_cuda_perfetto.py \
+  --iterations 10 \
+  --image-index 0 \
+  --require-native-cuda \
+  --output profiling/dip_native_cuda_test.json \
+  --plot profiling/dip_native_cuda_test_metrics.png
+```
+
+Open the generated JSON at [Perfetto UI](https://ui.perfetto.dev/) to inspect
+CPU/CUDA kernels, ADMM iteration regions, memory behavior, loss, and PSNR.
+
+To inspect code produced by `torch.compile`/Inductor, prefix the relevant Python
+command with:
+
+```bash
+TORCH_LOGS="output_code,kernel_code" python your_script.py
+```
+
+## Run experiments
+
+For an interactive walkthrough and the saved outputs, start Jupyter and open
+[`system.ipynb`](system.ipynb):
+
+```bash
+jupyter notebook system.ipynb
+```
+
+Experiment parameters—including noise level, iteration count, optimizer, ADMM
+penalty, and early stopping—are defined in [`src/config.py`](src/config.py).
+Generated images are written under `results/`; profiling artifacts are written
+under `profiling/`.
+
+## Evaluation
+
+The project tracks:
+
+- **PSNR** — reconstruction fidelity in decibels; higher is better.
+- **SSIM** — structural similarity; higher is better.
+- **DSSIM/edge score** — gradient-structure discrepancy; lower is better when
+  interpreted as dissimilarity.
+- **Runtime and CUDA time** — operator and end-to-end performance.
+
+For a fair method comparison, reuse the exact same clean image, noisy
+observation, noise seed, and preprocessing for every method.
+
+## License
+
+See [`LICENSE`](LICENSE).

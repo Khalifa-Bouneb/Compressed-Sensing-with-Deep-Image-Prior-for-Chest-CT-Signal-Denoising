@@ -66,7 +66,7 @@ ADMM_DIP_PARAMS = {
     'OPTIMIZER': 'adam', 
     'show_every': 50,
     'exp_weight': 0,
-    'num_iter': 2000,
+    'num_iter': 10,
     'input_depth': 32,
     'figsize': 4,
     'early_stopping': True,
@@ -107,6 +107,8 @@ ALL_PARAMS = {
     'ADMM-DIPWTV': ADMM_DIPWTV_PARAMS,
     'ADMM-DIP-CUDA': ADMM_DIP_PARAMS,
     'ADMM-DIPWTV-CUDA': ADMM_DIPWTV_PARAMS,
+    'ADMM-DIP-COMPILE': ADMM_DIP_PARAMS,
+    'ADMM-DIPWTV-COMPILE': ADMM_DIPWTV_PARAMS,
     'DCNN': DCNN_PARAMS,
     'BM3D': BM3D_PARAMS
 }
