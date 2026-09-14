@@ -32,6 +32,7 @@ from torch.utils.data import Subset
 
 from run_dip_denoise_deblur import BSDS300Dataset
 from src import denoise_dip_tv_cuda as tv_cuda
+from src import denoise_dip_tv_compile as tv_compile
 from src import denoise_dip_tv_eager as tv_eager
 from src import denoise_dip_tvw_cuda as wtv_cuda
 from src import denoise_dip_tvw_eager as wtv_eager
@@ -43,6 +44,7 @@ from src.utils import D, add_speckle, process_subset, psf2otf
 METHODS: tuple[tuple[str, Callable[..., Any]], ...] = (
     ("TV / eager PyTorch", tv_eager.admm_dip_single_eager),
     ("TV / custom CUDA", tv_cuda.admm_dip_single_cuda),
+    ("TV / compiled CUDA", tv_compile.admm_dip_single_compile),
     ("WTV / eager PyTorch", wtv_eager.admm_dip_wtv_single_eager),
     ("WTV / custom CUDA", wtv_cuda.admm_dip_wtv_single_cuda),
 )
