@@ -44,7 +44,7 @@ from src.utils import D, add_speckle, process_subset, psf2otf
 METHODS: tuple[tuple[str, Callable[..., Any]], ...] = (
     ("TV / eager PyTorch", tv_eager.admm_dip_single_eager),
     ("TV / custom CUDA", tv_cuda.admm_dip_single_cuda),
-    ("TV / compiled CUDA", tv_compile.admm_dip_single_compile),
+    # ("TV / compiled CUDA", tv_compile.admm_dip_single_compile),
     ("WTV / eager PyTorch", wtv_eager.admm_dip_wtv_single_eager),
     ("WTV / custom CUDA", wtv_cuda.admm_dip_wtv_single_cuda),
 )

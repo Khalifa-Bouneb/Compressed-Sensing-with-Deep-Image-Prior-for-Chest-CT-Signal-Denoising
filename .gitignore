@@ -61,7 +61,6 @@ checkpoints/
 # ========================
 # Logs
 # ========================
-*.log
 runs/
 tensorboard/
 profiling/
