@@ -140,21 +140,23 @@ where \(\eta\) is measurement noise. A conventional reconstruction minimizes a
 task-dependent data term together with an explicit image regularizer:
 
 $$
-x^*=\arg\min_x E(x;y)+R(x).
+x^{*}=\arg\min_x E(x;y)+R(x).
 $$
 
 DIP replaces direct pixel optimization with an untrained network
-parameterization \(x=f_\theta(z)\), where \(z\) is a fixed random tensor. The
-network weights—not a dataset—are optimized for the current observation:
+parameterization \(x=f_{\theta}(z)\), where \(z\) is a fixed random tensor.
+The network weights—not a dataset—are optimized for the current observation:
 
 $$
-\theta^*=\arg\min_\theta E\!\left(Af_\theta(z);y\right),
+\theta^{*}
+=
+\arg\min_{\theta}
+E\!\left(Af_{\theta}(z);y\right),
 \qquad
-\hat{x}=f_{\theta^*}(z).
+\hat{x}=f_{\theta^{*}}(z).
 $$
 
 For denoising, \(A=I\) and the basic DIP objective becomes
-
 $$
 \min_\theta \frac{1}{2}\lVert f_\theta(z)-y\rVert_2^2.
 $$
