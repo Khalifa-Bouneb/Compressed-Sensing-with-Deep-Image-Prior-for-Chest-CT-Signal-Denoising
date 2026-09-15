@@ -147,14 +147,17 @@ DIP replaces direct pixel optimization with an untrained network
 parameterization \(x=f_{\theta}(z)\), where \(z\) is a fixed random tensor.
 The network weights—not a dataset—are optimized for the current observation:
 
+
 $$
-\theta^{*}
+\theta^{\star}
 =
-\arg\min_{\theta}
-E\!\left(Af_{\theta}(z);y\right),
+\operatorname*{arg\,min}_{\theta}
+E\left(Af_{\theta}(z);y\right),
 \qquad
-\hat{x}=f_{\theta^{*}}(z).
+\hat{x}=f_{\theta^{\star}}(z).
 $$
+
+
 
 For denoising, \(A=I\) and the basic DIP objective becomes
 $$
