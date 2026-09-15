@@ -129,50 +129,53 @@ iteration is the best image.
 
 ## Method
 
-For a general inverse problem, let \(y\) be a degraded observation of an unknown
-image \(x\), and let \(A\) describe the image-formation process:
+For a general inverse problem, let $y$ be a degraded observation of an unknown
+image $x$, and let $A$ describe the image-formation process:
 
-$$
-y=Ax+\eta,
-$$
+```math
+y = Ax + \eta
+```
 
-where \(\eta\) is measurement noise. A conventional reconstruction minimizes a
+where $\eta$ is measurement noise. A conventional reconstruction minimizes a
 task-dependent data term together with an explicit image regularizer:
 
-$$
-x^{*}=\arg\min_x E(x;y)+R(x).
-$$
+```math
+x^\star = \underset{x}{\operatorname{arg\,min}}
+\left[ E(x;y) + R(x) \right]
+```
 
 DIP replaces direct pixel optimization with an untrained network
-parameterization \(x=f_{\theta}(z)\), where \(z\) is a fixed random tensor.
+parameterization $x=f_\theta(z)$, where $z$ is a fixed random tensor.
 The network weights—not a dataset—are optimized for the current observation:
 
-
-$$
-\theta^{\star}
-=
-\operatorname*{arg\,min}_{\theta}
-E\left(Af_{\theta}(z);y\right),
+```math
+\theta^\star =
+\underset{\theta}{\operatorname{arg\,min}}
+E\left(Af_\theta(z);y\right),
 \qquad
-\hat{x}=f_{\theta^{\star}}(z).
-$$
+\hat{x}=f_{\theta^\star}(z)
+```
 
+For denoising, $A=I$ and the basic DIP objective becomes:
 
-
-For denoising, \(A=I\) and the basic DIP objective becomes
-$$
-\min_\theta \frac{1}{2}\lVert f_\theta(z)-y\rVert_2^2.
-$$
+```math
+\underset{\theta}{\min}
+\frac{1}{2}
+\left\lVert f_\theta(z)-y \right\rVert_2^2
+```
 
 The original paper primarily relies on the network architecture as an implicit
 prior. This repository investigates an additional explicit TV prior, producing
-the combined objective
+the combined objective:
 
-$$
-\min_\theta \frac{1}{2}\lVert f_\theta(z)-y\rVert_2^2
-+ \lambda\lVert Df_\theta(z)\rVert_{2,1},
-$$
-
+```math
+\underset{\theta}{\min}
+\frac{1}{2}
+\left\lVert f_\theta(z)-y \right\rVert_2^2
++
+\lambda
+\left\lVert Df_\theta(z) \right\rVert_{2,1}
+```
 where \(D\) is the horizontal/vertical finite-difference operator. The implicit
 DIP prior encourages multiscale natural-image structure, while TV explicitly
 penalizes excessive local variation and promotes piecewise-smooth regions.
