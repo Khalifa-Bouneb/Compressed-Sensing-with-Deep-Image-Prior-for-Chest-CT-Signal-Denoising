@@ -9,7 +9,7 @@ indirect, incomplete, or noisy measurements. This repository applies those
 ideas to image denoising and serves as a foundation for compressed-sensing
 reconstruction of chest CT images.
 
-![Stanford EE367 / CS448I: Computational Imaging course banner](image.png)
+![Stanford EE367 / CS448I: Computational Imaging course banner](assets/image.png)
 
 The project uses **Deep Image Prior (DIP)**, an inverse-problem optimization
 technique that represents the unknown image with an untrained convolutional
@@ -18,7 +18,7 @@ network for a single corrupted observation; the network architecture itself
 acts as an implicit prior that tends to reproduce natural image structure
 before fitting noise.
 
-![Deep Image Prior optimization process](image-1.png)
+![Deep Image Prior optimization process](assets/image-1.png)
 
 This repository explores single-image restoration with **Deep Image Prior
 (DIP)**, **ADMM**, and total-variation regularization. The main engineering
@@ -34,50 +34,62 @@ faster** in the recorded CUDA-event benchmark.
 
 ## Denoising results on BSDS300
 
-The following composites compare the reconstructed image (**left**), noisy
-input (**center**), and ground truth (**right**). All four methods were evaluated
-on the same BSDS300 denoising example.
+All four composites use the same layout: **reconstruction (left), noisy
+observation (center), and ground truth (right)**. The table reproduces the
+values from the corresponding run logs. These are results for one BSDS300
+image, not dataset-wide averages.
+
+| Method | Reported output | PSNR_gt ↑ | PSNR_noisy | SSIM_gt ↑ | SSIM_noisy | DSSIM ↓ |
+|---|---|---:|---:|---:|---:|---:|
+| BM3D | Final output | **31.721** | 27.485 | **0.8032** | 0.5448 | 0.2778 |
+| DIP | Iteration 723 | 29.860 | 26.620 | 0.7607 | — | 0.2178 |
+| ADMM-DIP | Iteration 1965 | 31.642 | 27.513 | — | — | — |
+| ADMM-DIP-CUDA | Iteration 1999 | 32.610 | 27.913 | — | — | — |
+
+`PSNR_gt` and `SSIM_gt` compare the reconstruction with the ground truth.
+`PSNR_noisy` and `SSIM_noisy` compare it with the noisy observation. A dash
+means that the supplied log did not report that metric.
 
 ### BM3D
 
-![BM3D result, noisy input, and ground truth](bm3d.png)
+![Labeled BM3D reconstruction, noisy observation, and ground truth](assets/bm3d-labeled.png)
 
-- PSNR: **31.721 dB** (noisy input: 27.485 dB)
-- SSIM: **0.8032** (noisy input: 0.5448)
+- Ground-truth metrics: **31.721 dB PSNR**, **0.8032 SSIM**
+- Noisy-observation metrics: **27.485 PSNR**, **0.5448 SSIM**
 - DSSIM: **0.2778**
 
 ### Deep Image Prior (DIP)
 
-![DIP result, noisy input, and ground truth](dip.png)
+![Labeled DIP reconstruction, noisy observation, and ground truth](assets/dip-labeled.png)
 
 - Network parameters: **2,212,671**
 - Optimizer: **Adam**
-- Reported at iteration 723: **29.86 dB PSNR**, **0.7607 SSIM**, and
-  **0.2178 DSSIM** (PSNR to noisy input: 26.62 dB)
+- Iteration 723: **29.860 dB PSNR_gt**, **26.620 PSNR_noisy**,
+  **0.7607 SSIM_gt**, and **0.2178 DSSIM**
 - Early stopping restored the best checkpoint from iteration **703**.
 
 ### ADMM-DIP
 
-![ADMM-DIP result, noisy input, and ground truth](admm.png)
+![Labeled ADMM-DIP reconstruction, noisy observation, and ground truth](assets/admm-labeled.png)
 
 - Network parameters: **2,212,671**
 - Optimizer: **Adam**, learning rate **0.01**
-- Best restored checkpoint: **33.049 dB PSNR** at iteration **1865**
-- At the early-stopping iteration (1965): 31.642 dB PSNR to ground truth and
-  27.513 dB PSNR to the noisy input
+- Iteration 1965: **31.642 dB PSNR_gt** and **27.513 PSNR_noisy**
+- Early stopping restored the best checkpoint from iteration **1865**, where
+  `PSNR_gt` was **33.049 dB**.
 
 ### CUDA-accelerated ADMM-DIP
 
-![CUDA-accelerated ADMM-DIP result, noisy input, and ground truth](admm-cuda.png)
+![Labeled CUDA-accelerated ADMM-DIP reconstruction, noisy observation, and ground truth](assets/admm-cuda-labeled.png)
 
 - Network parameters: **2,212,671**
-- At iteration 1999: **32.610 dB PSNR** to ground truth and **27.913 dB PSNR**
-  to the noisy input
+- Iteration 1999: **32.610 dB PSNR_gt** and **27.913 PSNR_noisy**
 - Uses the native CUDA image operators, compiled on first use.
 
-The strongest reported reconstruction PSNR is **33.049 dB** from the restored
-ADMM-DIP checkpoint, an improvement of approximately **5.56 dB** over the noisy
-input.
+The strongest reported ground-truth PSNR is **33.049 dB**, obtained by the
+restored ADMM-DIP checkpoint at iteration 1865. Its other metrics were not
+included in the supplied log, so the main table retains the complete values
+reported at iteration 1965.
 
 ## Highlights
 
@@ -204,6 +216,27 @@ The optimization and profiling experiments were performed on an **NVIDIA A100
 GPU**. The following measurements were obtained over 100 calls on one real DIP
 output of shape `1 × 3 × 320 × 480`, using `float32` on `cuda:0`.
 
+### Experimental GPU
+
+![NVIDIA A100 80 GB Tensor Core GPU](assets/nvidia-a100-80-gb-og-social-1200x630.jpg)
+
+The experiments used an **NVIDIA A100 80 GB Tensor Core GPU**, based on the
+NVIDIA Ampere architecture. Its **80 GB of HBM2e VRAM** provides the capacity
+needed for memory-intensive optimization, large intermediate tensors, and
+detailed CUDA profiling without aggressively reducing the image or model size.
+The A100 also provides:
+
+- **19.5 TFLOPS of FP32 performance**;
+- Tensor Core acceleration for **TF32, FP16, and BF16** workloads;
+- approximately **1.94–2.04 TB/s of memory bandwidth**, depending on whether
+  the GPU uses the PCIe or SXM form factor; and
+- Multi-Instance GPU support for up to **seven isolated GPU instances**.
+
+These characteristics make the A100 particularly suitable for comparing eager
+PyTorch, compiled PyTorch, and custom CUDA kernels while collecting detailed
+timing and execution traces. See the official
+[NVIDIA A100 specifications](https://www.nvidia.com/en-us/data-center/a100/).
+
 | Implementation | Total time (100 calls) | Average per call | Relative speed |
 |---|---:|---:|---:|
 | FFT gradient | 39.189503 ms | 391.895 µs | 1.00× |
@@ -220,37 +253,26 @@ The profiler also reduced total self-CUDA time for 100 profiled calls from
 `70.728 ms` to `8.105 ms`. Small floating-point differences are expected
 because the implementations use different numerical paths.
 
-## Denoising results
+### End-to-end profiling results
 
-Representative metrics already recorded in [`system.ipynb`](system.ipynb) for
-one BSDS image with speckle noise are shown below. These are individual notebook
-runs, not dataset-wide averages.
+The profiling run compares the optimization behavior of four implementations:
+TV with eager PyTorch, TV with the custom CUDA operators, WTV with eager
+PyTorch, and WTV with the custom CUDA operators. The curves show the loss and
+ground-truth PSNR over the recorded iterations.
 
-| Method | Best/final PSNR against ground truth | SSIM against ground truth | Notes |
-|---|---:|---:|---|
-| Noisy observation | 24.08 dB | 0.6122 | Input baseline from the BM3D run |
-| BM3D | 25.35 dB | 0.6752 | Classical baseline |
-| DIP | 23.34 dB | 0.6063 | Early-stopped; best checkpoint at iteration 867 |
-| ADMM-DIP-TV | 23.36 dB | — | Best checkpoint at iteration 893 |
+![Loss and ground-truth PSNR profiling curves for TV and WTV implementations](assets/image-2.png)
 
-### Add new notebook results here
+The exported trace can be opened in Perfetto to inspect the complete execution
+timeline, including DIP forward passes, backward propagation, optimizer steps,
+ADMM iterations, and CPU/CUDA activity.
 
-Run all cells in [`system.ipynb`](system.ipynb), then add the final values to
-the table below. Keep the image index, noise model, noise level, seed, and
-iteration count beside every result so comparisons remain reproducible.
-
-<!-- RESULTS:END -->
-
-![alt text](image-3.png)
-The end-to-end profiler can also generate a comparison plot at
-`profiling/dip_native_cuda_test_metrics.png`:
-
-![alt text](image-2.png)
+![Perfetto trace of the profiled ADMM-DIP pipeline](assets/image-3.png)
 
 ## Repository layout
 
 ```text
 .
+├── assets/                        README images and experiment figures
 ├── Dataset/                       Local image data
 ├── src/
 │   ├── admm_cuda.py               Lazy CUDA loading and PyTorch fallback
