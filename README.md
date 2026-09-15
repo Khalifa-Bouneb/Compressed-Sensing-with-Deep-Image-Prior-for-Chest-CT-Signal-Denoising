@@ -1,5 +1,25 @@
 # GPU-Accelerated Deep Image Prior for Image Denoising
 
+## Introduction
+
+This project was adapted from Stanford University's **EE367 / CS448I:
+Computational Imaging** course. The course explores how computation and imaging
+systems can be designed together to recover useful visual information from
+indirect, incomplete, or noisy measurements. This repository applies those
+ideas to image denoising and serves as a foundation for compressed-sensing
+reconstruction of chest CT images.
+
+![Stanford EE367 / CS448I: Computational Imaging course banner](image.png)
+
+The project uses **Deep Image Prior (DIP)**, an inverse-problem optimization
+technique that represents the unknown image with an untrained convolutional
+neural network. Instead of learning from a large dataset, DIP optimizes the
+network for a single corrupted observation; the network architecture itself
+acts as an implicit prior that tends to reproduce natural image structure
+before fitting noise.
+
+![Deep Image Prior optimization process](image-1.png)
+
 This repository explores single-image restoration with **Deep Image Prior
 (DIP)**, **ADMM**, and total-variation regularization. The main engineering
 achievement is a native PyTorch C++/CUDA extension for the image operators used
@@ -11,6 +31,53 @@ faster** in the recorded CUDA-event benchmark.
 > BSDS300 sample for denoising. The repository title describes the longer-term
 > chest-CT/compressed-sensing direction; a CT measurement operator and CT
 > dataset are not yet part of the validated pipeline.
+
+## Denoising results on BSDS300
+
+The following composites compare the reconstructed image (**left**), noisy
+input (**center**), and ground truth (**right**). All four methods were evaluated
+on the same BSDS300 denoising example.
+
+### BM3D
+
+![BM3D result, noisy input, and ground truth](bm3d.png)
+
+- PSNR: **31.721 dB** (noisy input: 27.485 dB)
+- SSIM: **0.8032** (noisy input: 0.5448)
+- DSSIM: **0.2778**
+
+### Deep Image Prior (DIP)
+
+![DIP result, noisy input, and ground truth](dip.png)
+
+- Network parameters: **2,212,671**
+- Optimizer: **Adam**
+- Reported at iteration 723: **29.86 dB PSNR**, **0.7607 SSIM**, and
+  **0.2178 DSSIM** (PSNR to noisy input: 26.62 dB)
+- Early stopping restored the best checkpoint from iteration **703**.
+
+### ADMM-DIP
+
+![ADMM-DIP result, noisy input, and ground truth](admm.png)
+
+- Network parameters: **2,212,671**
+- Optimizer: **Adam**, learning rate **0.01**
+- Best restored checkpoint: **33.049 dB PSNR** at iteration **1865**
+- At the early-stopping iteration (1965): 31.642 dB PSNR to ground truth and
+  27.513 dB PSNR to the noisy input
+
+### CUDA-accelerated ADMM-DIP
+
+![CUDA-accelerated ADMM-DIP result, noisy input, and ground truth](admm-cuda.png)
+
+- Network parameters: **2,212,671**
+- At iteration 1999: **32.610 dB PSNR** to ground truth and **27.913 dB PSNR**
+  to the noisy input
+- Uses the native CUDA image operators, compiled on first use.
+
+The strongest reported reconstruction PSNR is **33.049 dB** from the restored
+ADMM-DIP checkpoint, an improvement of approximately **5.56 dB** over the noisy
+input.
 
 ## Highlights
 
@@ -172,22 +239,13 @@ Run all cells in [`system.ipynb`](system.ipynb), then add the final values to
 the table below. Keep the image index, noise model, noise level, seed, and
 iteration count beside every result so comparisons remain reproducible.
 
-<!-- RESULTS:START - Replace or extend rows below with results from system.ipynb. -->
-
-| Image | Noise / degradation | Method | Iterations | PSNR (dB) ↑ | SSIM ↑ | DSSIM ↓ | Runtime |
-|---|---|---|---:|---:|---:|---:|---:|
-| `image index` | `speckle, σ=...` | `method` | `...` | `...` | `...` | `...` | `...` |
-
 <!-- RESULTS:END -->
 
-Example ADMM-DIP optimization snapshots:
-
-![ADMM-DIP denoising snapshots](results/denoise/ADMM-DIP/image_grid_img_sigma0.1_9__image=1.png)
-
+![alt text](image-3.png)
 The end-to-end profiler can also generate a comparison plot at
 `profiling/dip_native_cuda_test_metrics.png`:
 
-![DIP CUDA profiling metrics](profiling/dip_native_cuda_test_metrics.png)
+![alt text](image-2.png)
 
 ## Repository layout
 
