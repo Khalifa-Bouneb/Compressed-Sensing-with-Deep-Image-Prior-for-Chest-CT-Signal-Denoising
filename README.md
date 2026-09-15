@@ -140,7 +140,8 @@ where $\eta$ is measurement noise. A conventional reconstruction minimizes a
 task-dependent data term together with an explicit image regularizer:
 
 ```math
-x^\star = \underset{x}{\operatorname{arg\,min}}
+x^\star =
+\underset{x}{\mathrm{arg\,min}}
 \left[ E(x;y) + R(x) \right]
 ```
 
@@ -150,7 +151,7 @@ The network weights—not a dataset—are optimized for the current observation:
 
 ```math
 \theta^\star =
-\underset{\theta}{\operatorname{arg\,min}}
+\underset{\theta}{\mathrm{arg\,min}}
 E\left(Af_\theta(z);y\right),
 \qquad
 \hat{x}=f_{\theta^\star}(z)
@@ -176,12 +177,12 @@ the combined objective:
 \lambda
 \left\lVert Df_\theta(z) \right\rVert_{2,1}
 ```
-where \(D\) is the horizontal/vertical finite-difference operator. The implicit
+
+where $D$ is the horizontal/vertical finite-difference operator. The implicit
 DIP prior encourages multiscale natural-image structure, while TV explicitly
 penalizes excessive local variation and promotes piecewise-smooth regions.
 The weighted-TV variant adapts the regularization strength spatially to better
 preserve important edges.
-
 ### ADMM splitting
 
 Introducing a split variable \(v=Df_\theta(z)\) separates the nonsmooth TV term
