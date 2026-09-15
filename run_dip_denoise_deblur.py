@@ -47,11 +47,13 @@ methods_deblur = ["task3", "smart_dip_deblur", "dip", "admm_dip"]
                 
 ##############
 class BSDS300Dataset(Dataset):
-    def __init__(self, root='./Dataset/BSDS300/BSDS300', patch_size=32, use_patches=True):
+    def __init__(self, root='./Dataset/BSDS300/BSDS300', patch_size=32,
+                 use_patches=True, preserve_orientation=True):
         files = self._resolve_image_files(root)
         
         self.use_patches = use_patches
-        self.images = self.load_images(files)
+        self.preserve_orientation = preserve_orientation
+        self.images = self.load_images(files, preserve_orientation)
         self.patches = self.patchify(self.images, patch_size)
         self.mean = torch.mean(self.patches)
         self.std = torch.std(self.patches)
@@ -77,18 +79,30 @@ class BSDS300Dataset(Dataset):
             f"Searched: {searched}. Check the root path: {root}"
         )
 
-    def load_images(self, files):
+    def load_images(self, files, preserve_orientation=True):
         out = []
         for fname in files:
             img = skimage.io.imread(fname)
-            if img.shape[0] > img.shape[1]:
+            # Full-image restoration must retain the orientation stored in the
+            # source file.  The old spatial transpose changed portrait images
+            # from HxW to WxH and visibly rotated/mirrored the result.
+            if not preserve_orientation and img.shape[0] > img.shape[1]:
                 img = img.transpose(1, 0, 2)
             img = img.transpose(2, 0, 1).astype(np.float32) / 255.
             out.append(torch.from_numpy(img))
-        return torch.stack(out)
+        # Native BSDS images contain both portrait and landscape shapes, so
+        # keep them as a list when preserving orientation. Patch extraction
+        # below still combines fixed-size patches into one tensor.
+        return out if preserve_orientation else torch.stack(out)
     
     def patchify(self, img_array, patch_size):
         # create patches from image array of size (N_images, 3, rows, cols)
+        if isinstance(img_array, (list, tuple)):
+            return torch.cat(
+                [self.patchify(image.unsqueeze(0), patch_size)
+                 for image in img_array],
+                dim=0,
+            )
         patches = img_array.unfold(2, patch_size, patch_size).unfold(3, patch_size, patch_size)
         patches = patches.reshape(patches.shape[0], 3, -1, patch_size, patch_size)
         patches = patches.permute(0, 2, 1, 3, 4).reshape(-1, 3, patch_size, patch_size)
@@ -98,7 +112,7 @@ class BSDS300Dataset(Dataset):
         if self.use_patches:
             return self.patches.shape[0]
         else:
-            return self.images.shape[0]
+            return len(self.images)
 
     def __getitem__(self, idx):
         if self.use_patches:
@@ -109,7 +123,13 @@ class BSDS300Dataset(Dataset):
 class BlurredBSDS300Dataset(BSDS300Dataset):
     def __init__(self, root='./Dataset/BSDS300/BSDS300', patch_size=32, use_patches=True,
                  kernel_size=7, sigma=2, return_kernel=True):
-        super(BlurredBSDS300Dataset, self).__init__(root=root, patch_size=patch_size, use_patches=use_patches)
+        # The legacy batched deblurring path requires a single stacked tensor.
+        # Keep its former landscape normalization until that path supports
+        # variable-sized images; normal denoising preserves native orientation.
+        super(BlurredBSDS300Dataset, self).__init__(
+            root=root, patch_size=patch_size, use_patches=use_patches,
+            preserve_orientation=False,
+        )
 
         # trim images to even size
         self.images = self.images[..., :-1, :-1]

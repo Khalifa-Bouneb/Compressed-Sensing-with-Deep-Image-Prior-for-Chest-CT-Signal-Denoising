@@ -176,5 +176,5 @@ for step in (range(num_iter)):
             pickle.dump(metrics, f)
             
         out_x_np = torch_to_np(out_x)
-        plot_image_grid([np.clip(out_x_np, 0, 1), imgs], factor=13, nrow=1, prefix="DIP-MLP", tag=f"kernel={opt.kernel_size[0]}", index = step, tag1=f"image={ind}", task="deblur")
+        plot_image_grid([np.clip(out_x_np, 0, 1), imgs], factor=13, nrow=2, prefix="DIP-MLP", tag=f"kernel={opt.kernel_size[0]}", index = step, tag1=f"image={ind}", task="deblur")
             

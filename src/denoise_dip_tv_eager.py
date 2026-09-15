@@ -103,6 +103,8 @@ def admm_dip_single_eager(img_pil, img_clean_np, y, ind, verbose=False):
     # optimizer
     with profile_region("OPTIMIZER_INITIALIZATION"):
         optimizer = torch.optim.Adam(net.parameters(), lr=LR)
+    if verbose:
+        print(f"ADMM optimizer: Adam(lr={LR:g})")
 
     # Set up ADMM stuff
     size = img_clean_np.shape
@@ -282,6 +284,23 @@ def admm_dip_single_eager(img_pil, img_clean_np, y, ind, verbose=False):
 
     if best_state_dict is not None:
         net.load_state_dict(best_state_dict)
+
+        # Display and save the checkpoint that is actually returned. Previously
+        # the last visible figure was the failed early-stopping iteration (often
+        # a saturated black output), even though different weights were restored.
+        with torch.no_grad():
+            best_out_np = torch_to_np(net(net_input))
+        if PLOT:
+            plot_image_grid(
+                [np.clip(best_out_np, 0, 1), y, img_clean_np],
+                factor=figsize,
+                index=best_iteration,
+                view=verbose,
+                prefix="ADMM-DIP",
+                suffix="best",
+                tag=f"sigma{sigma}",
+                tag1=f"image={ind}",
+            )
 
     out_dump = [net, net_input]
     return metrics, out_dump      

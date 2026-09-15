@@ -24,25 +24,97 @@ faster** in the recorded CUDA-event benchmark.
 - PyTorch Profiler/Perfetto traces plus loss and ground-truth PSNR tracks.
 - Classical BM3D, Wiener, TV, Richardson–Lucy, and supervised-model baselines.
 
+## Motivation from the Deep Image Prior paper
+
+This work builds on Ulyanov, Vedaldi, and Lempitsky's
+[*Deep Image Prior*](paper.pdf). Their central observation is that useful image
+statistics do not have to be learned from a large training dataset: the
+structure of a convolutional generator itself biases optimization toward
+natural images. The network is therefore not a pretrained denoiser. Its weights
+start randomly and are optimized for one corrupted image only.
+
+This architectural bias is particularly useful when training pairs are scarce
+or unavailable. Convolutions, downsampling, upsampling, nonlinearities, and
+skip connections favor spatially coherent, multiscale structure. During
+optimization, a DIP network tends to reconstruct the dominant image structure
+before it fits unstructured noise. The paper describes this behavior as a high
+impedance to noise and a lower impedance to natural signal.
+
+The behavior is not permanent: a sufficiently expressive network can
+eventually reproduce the corruption as well. Denoising therefore depends on
+the optimization trajectory, not only its final minimum. Early stopping selects
+a reconstruction before the network begins to overfit the noisy observation.
+This is why the implementations in this repository track reconstruction
+metrics and retain a best checkpoint instead of assuming that the last
+iteration is the best image.
+
 ## Method
 
-For a corrupted observation \(y\), DIP represents the restored image as the
-output of an untrained network \(f_\theta\) driven by fixed random noise \(z\):
+For a general inverse problem, let \(y\) be a degraded observation of an unknown
+image \(x\), and let \(A\) describe the image-formation process:
 
 $$
-\hat{x}=f_\theta(z).
+y=Ax+\eta,
 $$
 
-The TV-regularized problem is
+where \(\eta\) is measurement noise. A conventional reconstruction minimizes a
+task-dependent data term together with an explicit image regularizer:
+
+$$
+x^*=\arg\min_x E(x;y)+R(x).
+$$
+
+DIP replaces direct pixel optimization with an untrained network
+parameterization \(x=f_\theta(z)\), where \(z\) is a fixed random tensor. The
+network weights—not a dataset—are optimized for the current observation:
+
+$$
+\theta^*=\arg\min_\theta E\!\left(Af_\theta(z);y\right),
+\qquad
+\hat{x}=f_{\theta^*}(z).
+$$
+
+For denoising, \(A=I\) and the basic DIP objective becomes
+
+$$
+\min_\theta \frac{1}{2}\lVert f_\theta(z)-y\rVert_2^2.
+$$
+
+The original paper primarily relies on the network architecture as an implicit
+prior. This repository investigates an additional explicit TV prior, producing
+the combined objective
 
 $$
 \min_\theta \frac{1}{2}\lVert f_\theta(z)-y\rVert_2^2
 + \lambda\lVert Df_\theta(z)\rVert_{2,1},
 $$
 
-where \(D\) is the horizontal/vertical finite-difference operator. ADMM splits
-the image-gradient term from network optimization. The CUDA extension computes
-the periodic forward differences directly in image space:
+where \(D\) is the horizontal/vertical finite-difference operator. The implicit
+DIP prior encourages multiscale natural-image structure, while TV explicitly
+penalizes excessive local variation and promotes piecewise-smooth regions.
+The weighted-TV variant adapts the regularization strength spatially to better
+preserve important edges.
+
+### ADMM splitting
+
+Introducing a split variable \(v=Df_\theta(z)\) separates the nonsmooth TV term
+from network fitting:
+
+$$
+\min_{\theta,v}
+\frac{1}{2}\lVert f_\theta(z)-y\rVert_2^2+\lambda\lVert v\rVert_{2,1}
+\quad\text{subject to}\quad v=Df_\theta(z).
+$$
+
+ADMM alternates between updating the DIP network, applying TV shrinkage, and
+updating the dual variables. This makes the method modular, but repeatedly
+evaluating the spatial derivatives creates a performance-critical inner path.
+The CUDA extension targets that path.
+
+### Native CUDA acceleration
+
+The CUDA extension computes the periodic forward differences directly in image
+space:
 
 $$
 D_hx[i,j]=x[i,j+1]-x[i,j], \qquad
@@ -51,11 +123,19 @@ $$
 
 with wrap-around boundaries. This avoids the forward FFT, two frequency-domain
 multiplications, and two inverse FFTs previously needed for each gradient call.
+The extension also implements the adjoint divergence used during backpropagation
+and a fused shrinkage/dual-update kernel. PyTorch's autograd interface connects
+these native operations to optimization of the DIP network.
+
+In short, the paper supplies the **implicit network prior**; this repository
+adds **explicit TV/WTV regularization, ADMM optimization, native CUDA image
+operators, and end-to-end profiling** around that foundation.
 
 ## Recorded achievement: custom CUDA gradient
 
-The following measurements were obtained over 100 calls on one real DIP output
-of shape `1 × 3 × 320 × 480`, using `float32` on `cuda:0`.
+The optimization and profiling experiments were performed on an **NVIDIA A100
+GPU**. The following measurements were obtained over 100 calls on one real DIP
+output of shape `1 × 3 × 320 × 480`, using `float32` on `cuda:0`.
 
 | Implementation | Total time (100 calls) | Average per call | Relative speed |
 |---|---:|---:|---:|
@@ -128,6 +208,7 @@ The end-to-end profiler can also generate a comparison plot at
 ├── profiling/                     Perfetto traces and metric plots
 ├── profile_dip_eager_cuda_perfetto.py
 ├── run_dip_denoise_deblur.py      Experiment runner and dataset loader
+├── paper.pdf                       Deep Image Prior reference paper
 └── system.ipynb                   Main experiment notebook and results
 ```
 
@@ -227,6 +308,12 @@ The project tracks:
 
 For a fair method comparison, reuse the exact same clean image, noisy
 observation, noise seed, and preprocessing for every method.
+
+## Reference
+
+D. Ulyanov, A. Vedaldi, and V. Lempitsky, “Deep Image Prior,” *International
+Journal of Computer Vision*, 2020. The local paper is available as
+[`paper.pdf`](paper.pdf); the original preprint identifier is arXiv:1711.10925.
 
 ## License
 
