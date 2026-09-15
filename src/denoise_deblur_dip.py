@@ -222,7 +222,7 @@ def dip_single(img_clean_pil, img_clean_np, y, ind, verbose=False, deblur=False)
             else:
                 task = "denoise"
             plot_image_grid([np.clip(out_np, 0, 1), 
-                            y, img_clean_np], factor=figsize, nrow=1, prefix="DIP", tag=f"sigma={sigma}", task=task, index=i, view = verbose, tag1=f"image={ind}")
+                            y, img_clean_np], factor=figsize, nrow=3, prefix="DIP", tag=f"sigma={sigma}", task=task, index=i, view = verbose, tag1=f"image={ind}")
             
         # Backtracking
         if i % show_every:

@@ -73,6 +73,6 @@ def bm3d_single(img_pil, img_np, img_noisy_np, ind, verbose=False):
     # Save plot of bm3d output vs. noisy image
     if  BM3D_PARAMS['PLOT']:
         plot_image_grid([np.clip(bm3d_image_out, 0, 1), 
-                        img_noisy_np, img_np], factor=13, nrow=1, view = verbose, index=f"image={ind}", prefix="BM3D", tag=f"noise={sigma}")
+                        img_noisy_np, img_np], factor=13, nrow=3, view = verbose, index=f"image={ind}", prefix="BM3D", tag=f"noise={sigma}")
     
     return metrics, bm3d_image_out

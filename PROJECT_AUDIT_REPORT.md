@@ -15,7 +15,7 @@ However, several advertised capabilities are not yet valid end to end:
 - The supervised DnCNN path currently stops at breakpoints and has a dataset-constructor error.
 - The pretrained U-Net deblurring path cannot run because its weights are absent.
 - The blind DIP deconvolution script is a standalone prototype with missing data and incompatible imports.
-- The repository does not currently implement compressed sensing or chest CT reconstruction despite its title.
+- The repository does not currently implemenVt compressed sensing or chest CT reconstruction despite its title.
 - Different methods use different corruption models, samples, and evaluation conventions, so current benchmark comparisons are not scientifically fair.
 
 The vanilla DIP denoising path is the strongest working core. The OpenCV image-layout error in that path has been fixed.

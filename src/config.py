@@ -62,11 +62,13 @@ ADMM_DIP_PARAMS = {
     'pad': 'reflection',
     'OPT_OVER': 'net',
     'reg_noise_std': 1. / 40., 
+    # 0.05 can drive the sigmoid output into saturation on the first ADMM
+    # update, producing an almost-black reconstruction that cannot recover.
     'LR': 0.01,
     'OPTIMIZER': 'adam', 
-    'show_every': 50,
+    'show_every': 500,
     'exp_weight': 0,
-    'num_iter': 10,
+    'num_iter': 2000,
     'input_depth': 32,
     'figsize': 4,
     'early_stopping': True,

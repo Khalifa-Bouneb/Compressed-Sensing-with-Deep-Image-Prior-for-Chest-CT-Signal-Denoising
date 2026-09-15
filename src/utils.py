@@ -183,7 +183,9 @@ def get_image_grid(images_np, nrow=8):
     
     return torch_grid.numpy()
 
-def plot_image_grid(images_np, nrow =8, factor=1, interpolation='lanczos', view = False, index=1, prefix="", suffix="", tag="", tag1="", task="denoise"):
+def plot_image_grid(images_np, nrow=8, factor=1, interpolation='none',
+                    view=False, index=1, prefix="", suffix="", tag="",
+                    tag1="", task="denoise"):
     """Draws images in a grid
     
     Args:
@@ -210,13 +212,30 @@ def plot_image_grid(images_np, nrow =8, factor=1, interpolation='lanczos', view 
         Image.fromarray((grid_to_save * 255).astype(np.uint8)).save(output_path)
     
     if view:
-        plt.figure(figsize=(factor * len(images_np), factor))
+        # Match the figure to the actual grid aspect ratio. The previous fixed
+        # height made portrait/native-orientation images look small in Jupyter,
+        # while Lanczos display interpolation softened already-sized pixels.
+        grid_height, grid_width = grid.shape[-2:]
+        width_inches = max(float(factor) * len(images_np), 8.0)
+        height_inches = max(width_inches * grid_height / grid_width, 4.0)
+        plt.figure(
+            figsize=(width_inches, height_inches),
+            dpi=120,
+            constrained_layout=True,
+        )
         if images_np[0].shape[0] == 1:
-            plt.imshow(grid[0], cmap='gray', interpolation=interpolation)
+            plt.imshow(
+                np.clip(grid[0], 0, 1), cmap='gray',
+                interpolation=interpolation,
+            )
         else:
-            plt.imshow(grid.transpose(1, 2, 0), interpolation=interpolation)
+            plt.imshow(
+                np.clip(grid.transpose(1, 2, 0), 0, 1),
+                interpolation=interpolation,
+            )
         plt.axis('off')
         plt.show()
+        plt.close()
 
     return grid
 
